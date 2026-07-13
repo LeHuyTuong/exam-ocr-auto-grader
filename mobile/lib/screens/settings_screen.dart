@@ -30,11 +30,12 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadSettings() async {
     const storage = FlutterSecureStorage();
-    final url = await storage.read(key: 'api_url');
     final autoSave = await storage.read(key: 'auto_save');
     if (mounted) {
       setState(() {
-        _urlCtrl.text = url ?? 'http://10.0.2.2:8080/api';
+        // Show the URL actually in effect (saved override or platform default),
+        // not a hardcoded placeholder that may not match what the app uses.
+        _urlCtrl.text = ApiClient().currentBaseUrl;
         _autoSave = autoSave != 'false';
       });
     }
@@ -56,26 +57,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _testing = true;
       _testResult = null;
     });
-    try {
-      final token = await ApiClient().getToken();
-      if (token == null) {
-        setState(() {
-          _testResult = 'Chưa đăng nhập. Không thể kiểm tra.';
-          _testing = false;
-        });
-        return;
-      }
-      await ApiClient().get('/auth/me');
-      setState(() {
-        _testResult = 'Kết nối thành công!';
-        _testing = false;
-      });
-    } catch (e) {
-      setState(() {
-        _testResult = 'Kết nối thất bại: $e';
-        _testing = false;
-      });
-    }
+    // Apply the URL currently in the field so the user can test before saving.
+    await ApiClient().setBaseUrl(_urlCtrl.text.trim());
+    final ok = await ApiClient().testConnection();
+    if (!mounted) return;
+    setState(() {
+      _testResult = ok
+          ? 'Kết nối thành công!'
+          : 'Kết nối thất bại. Kiểm tra lại địa chỉ server.';
+      _testing = false;
+    });
   }
 
   Future<void> _toggleAutoSave(bool value) async {

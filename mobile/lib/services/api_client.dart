@@ -120,6 +120,9 @@ class ApiClient {
 
   Future<String?> getBaseUrl() => _storage.read(key: _baseUrlKey);
 
+  /// The URL actually in effect right now (saved override or platform default).
+  String get currentBaseUrl => _dio.options.baseUrl;
+
   Future<String?> getToken() => _storage.read(key: _tokenKey);
 
   Future<void> setToken(String token) async {
@@ -135,6 +138,20 @@ class ApiClient {
     final expiry =
         DateTime.now().add(Duration(seconds: expiresIn - 300)).millisecondsSinceEpoch;
     await _storage.write(key: _tokenExpiryKey, value: expiry.toString());
+  }
+
+  /// Checks whether the configured server is reachable, without needing auth.
+  /// Any HTTP response (even 401) proves the server is up; only a transport
+  /// failure (timeout / no connection) counts as unreachable.
+  Future<bool> testConnection() async {
+    try {
+      await _dio.get('/auth/me');
+      return true;
+    } on DioException catch (e) {
+      return e.response != null;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<Response> post(String path, {dynamic data}) =>
