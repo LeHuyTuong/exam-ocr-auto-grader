@@ -31,11 +31,11 @@ class RolePermissionSeeder extends Seeder
         ];
 
         foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission]);
+            Permission::firstOrCreate(['name' => $permission]);
         }
 
-        $teacherRole = Role::create(['name' => 'teacher']);
-        $teacherRole->givePermissionTo([
+        $teacherRole = Role::firstOrCreate(['name' => 'teacher']);
+        $teacherRole->syncPermissions([
             'class.view',
             'exam.view',
             'exam.create',
@@ -50,7 +50,7 @@ class RolePermissionSeeder extends Seeder
             'dashboard.view',
         ]);
 
-        $adminRole = Role::create(['name' => 'admin']);
-        $adminRole->givePermissionTo(Permission::all());
+        $adminRole = Role::firstOrCreate(['name' => 'admin']);
+        $adminRole->syncPermissions(Permission::all());
     }
 }

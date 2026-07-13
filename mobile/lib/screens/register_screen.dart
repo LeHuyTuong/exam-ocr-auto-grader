@@ -41,8 +41,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
       _passCtrl.text,
       _classCodeCtrl.text.trim(),
     );
-    if (error != null && mounted) {
+    if (!mounted) return;
+    if (error != null) {
       setState(() => _error = error);
+    } else {
+      // Registration also logs the user in. Pop this pushed screen so the
+      // root navigator (already rebuilt to HomeScreen) becomes visible.
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Đăng ký thành công!')),
+      );
+      Navigator.pop(context);
     }
   }
 
