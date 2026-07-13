@@ -8,6 +8,11 @@ node_modules/
 *.zip
 backend-deploy.zip
 
+# FTP deploy credentials + script — NEVER commit (contains secrets/tokens)
+.env.deploy
+deploy.sh
+web.php.clean
+
 # Backend (Laravel)
 backend/vendor/
 backend/storage/*.key

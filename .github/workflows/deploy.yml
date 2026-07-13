@@ -1,0 +1,63 @@
+name: Deploy backend to cPanel (FTP)
+
+# Chạy khi push vào main có thay đổi ở backend/, hoặc bấm tay trong tab Actions.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo, pdo_mysql, bcmath, gd, zip, intl
+
+      - name: Install composer dependencies (production)
+        working-directory: backend
+        run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+      - name: Upload via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          # Đổi thành 'ftps' nếu host bắt buộc FTP-SSL.
+          protocol: ftp
+          local-dir: ./backend/
+          server-dir: ${{ secrets.FTP_SERVER_DIR }}
+          # KHÔNG đụng .env / storage runtime của production.
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/.github/**
+            **/.env
+            **/.env.*
+            **/node_modules/**
+            **/tests/**
+            storage/logs/**
+            storage/framework/cache/**
+            storage/framework/sessions/**
+            storage/framework/views/**
+            database/database.sqlite
+
+      - name: Run migrations & seed (secured endpoint)
+        run: |
+          echo "Gọi deploy hook để migrate + seed..."
+          curl -fsS "https://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}" \
+            || curl -fsS "http://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}"
+          echo ""
