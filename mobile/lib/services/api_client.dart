@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ApiClient {
@@ -11,7 +12,18 @@ class ApiClient {
 
   static const String _baseUrlKey = 'api_url';
   static const String _tokenKey = 'auth_token';
-  static const String _defaultBaseUrl = 'http://10.0.2.2:8080/api';
+  static const String _tokenExpiryKey = 'token_expiry';
+  // Release builds (the APK teachers install) point at the production host so
+  // no manual setup is needed — switch to https here once SSL is enabled.
+  // Debug web/desktop use localhost; the Android emulator uses 10.0.2.2.
+  // Any of these can be overridden at runtime via Settings.
+  static String get _defaultBaseUrl {
+    if (kReleaseMode) return 'http://carbonx.io.vn/api';
+    if (kIsWeb) return 'http://127.0.0.1:8080/api';
+    return 'http://10.0.2.2:8080/api';
+  }
+
+  bool _refreshing = false;
 
   Future<void> init() async {
     final savedUrl = await _storage.read(key: _baseUrlKey);
@@ -31,20 +43,99 @@ class ApiClient {
         }
         handler.next(options);
       },
+      onError: (error, handler) async {
+        if (error.response?.statusCode == 401 && !_refreshing) {
+          final refreshed = await _tryRefreshToken();
+          if (refreshed) {
+            final token = await _storage.read(key: _tokenKey);
+            error.requestOptions.headers['Authorization'] = 'Bearer $token';
+            try {
+              final response = await _dio.fetch(error.requestOptions);
+              handler.resolve(response);
+              return;
+            } catch (e) {
+              handler.next(error);
+              return;
+            }
+          }
+        }
+        handler.next(error);
+      },
     ));
   }
 
+  Future<bool> _tryRefreshToken() async {
+    _refreshing = true;
+    try {
+      final token = await _storage.read(key: _tokenKey);
+      if (token == null) return false;
+
+      final response = await Dio(BaseOptions(
+        baseUrl: _dio.options.baseUrl,
+        headers: {
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      )).post('/auth/refresh');
+
+      final newToken = response.data['access_token'] as String?;
+      final expiresIn = response.data['expires_in'] as int?;
+
+      if (newToken != null) {
+        await setToken(newToken);
+        if (expiresIn != null) {
+          final expiry = DateTime.now()
+              .add(Duration(seconds: expiresIn - 300))
+              .millisecondsSinceEpoch;
+          await _storage.write(key: _tokenExpiryKey, value: expiry.toString());
+        }
+        return true;
+      }
+      return false;
+    } catch (_) {
+      await clearToken();
+      await _storage.delete(key: _tokenExpiryKey);
+      return false;
+    } finally {
+      _refreshing = false;
+    }
+  }
+
+  Future<bool> isTokenExpiringSoon() async {
+    final expiryStr = await _storage.read(key: _tokenExpiryKey);
+    if (expiryStr == null) return false;
+    final expiry = int.tryParse(expiryStr) ?? 0;
+    return DateTime.now().millisecondsSinceEpoch >= expiry;
+  }
+
   Future<void> setBaseUrl(String url) async {
-    await _storage.write(key: _baseUrlKey, value: url);
+    // Update the in-memory client first so a storage failure (e.g. secure
+    // storage misbehaving on web) can't prevent the URL change from taking
+    // effect for the current session.
     _dio.options.baseUrl = url;
+    try {
+      await _storage.write(key: _baseUrlKey, value: url);
+    } catch (_) {}
   }
 
   Future<String?> getBaseUrl() => _storage.read(key: _baseUrlKey);
 
   Future<String?> getToken() => _storage.read(key: _tokenKey);
-  Future<void> setToken(String token) async =>
-      _storage.write(key: _tokenKey, value: token);
-  Future<void> clearToken() async => _storage.delete(key: _tokenKey);
+
+  Future<void> setToken(String token) async {
+    await _storage.write(key: _tokenKey, value: token);
+  }
+
+  Future<void> clearToken() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _tokenExpiryKey);
+  }
+
+  Future<void> setTokenExpiry(int expiresIn) async {
+    final expiry =
+        DateTime.now().add(Duration(seconds: expiresIn - 300)).millisecondsSinceEpoch;
+    await _storage.write(key: _tokenExpiryKey, value: expiry.toString());
+  }
 
   Future<Response> post(String path, {dynamic data}) =>
       _dio.post(path, data: data);

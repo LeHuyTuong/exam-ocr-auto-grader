@@ -65,7 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         });
         return;
       }
-      await ApiClient().get('/user');
+      await ApiClient().get('/auth/me');
       setState(() {
         _testResult = 'Kết nối thành công!';
         _testing = false;

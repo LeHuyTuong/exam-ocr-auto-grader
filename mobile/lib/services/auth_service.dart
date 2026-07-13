@@ -30,7 +30,8 @@ class AuthService extends ChangeNotifier {
 
       final res = await _api.post('/auth/register', data: data);
       final responseData = res.data as Map<String, dynamic>;
-      await _api.setToken(responseData['token'] as String);
+      await _api.setToken(responseData['access_token'] as String);
+      await _api.setTokenExpiry(responseData['expires_in'] as int);
       _user = User.fromJson(responseData['user'] as Map<String, dynamic>);
       _loading = false;
       notifyListeners();
@@ -49,9 +50,10 @@ class AuthService extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+
     try {
-      final res = await _api.get('/user');
-      _user = User.fromJson(res.data);
+      final res = await _api.get('/auth/me');
+      _user = User.fromJson(res.data['user']);
       _restored = true;
       notifyListeners();
       return true;
@@ -74,7 +76,8 @@ class AuthService extends ChangeNotifier {
       });
 
       final data = res.data;
-      await _api.setToken(data['token'] as String);
+      await _api.setToken(data['access_token'] as String);
+      await _api.setTokenExpiry(data['expires_in'] as int);
       _user = User.fromJson(data['user'] as Map<String, dynamic>);
       _loading = false;
       notifyListeners();
