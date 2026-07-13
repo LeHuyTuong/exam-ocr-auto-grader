@@ -1,4 +1,4 @@
-package com.chamthi.chamthi_mobile
+package com.chamthi.mobile
 
 import io.flutter.embedding.android.FlutterActivity
 
