@@ -17,7 +17,8 @@ class ExamTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        $this->setUpJwtAuth();
+        $this->user = $this->jwtAsTeacher();
     }
 
     public function test_get_today_exam_returns_404_when_no_exam(): void
@@ -25,7 +26,7 @@ class ExamTest extends TestCase
         $class = SchoolClass::factory()->create();
         $this->user->classes()->attach($class->id);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/exams/today?class_id='.$class->id);
 
         $response->assertStatus(404)
@@ -37,7 +38,7 @@ class ExamTest extends TestCase
         $exam = Exam::factory()->create(['date' => today()]);
         $this->user->classes()->attach($exam->class_id);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/exams/today?class_id='.$exam->class_id);
 
         $response->assertStatus(200)
@@ -49,7 +50,7 @@ class ExamTest extends TestCase
         $class = SchoolClass::factory()->create();
         $this->user->classes()->attach($class->id);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/exams/today', [
                 'class_id' => $class->id,
                 'total_questions' => 50,
@@ -71,7 +72,7 @@ class ExamTest extends TestCase
         $exam = Exam::factory()->create(['date' => today()]);
         $this->user->classes()->attach($exam->class_id);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/exams/today', [
                 'class_id' => $exam->class_id,
                 'total_questions' => 99,
@@ -84,7 +85,7 @@ class ExamTest extends TestCase
 
     public function test_create_exam_validates_required_fields(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/exams/today', []);
 
         $response->assertStatus(422)

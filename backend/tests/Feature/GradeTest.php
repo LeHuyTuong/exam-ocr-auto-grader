@@ -25,7 +25,8 @@ class GradeTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        $this->setUpJwtAuth();
+        $this->user = $this->jwtAsTeacher();
         $this->class = SchoolClass::factory()->create();
         $this->user->classes()->attach($this->class->id);
         $this->exam = Exam::factory()->create([
@@ -42,7 +43,7 @@ class GradeTest extends TestCase
 
     public function test_store_grade_successfully(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/grades', [
                 'exam_id' => $this->exam->id,
                 'class_id' => $this->class->id,
@@ -67,7 +68,7 @@ class GradeTest extends TestCase
 
     public function test_store_grade_creates_new_student(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/grades', [
                 'exam_id' => $this->exam->id,
                 'class_id' => $this->class->id,
@@ -89,7 +90,7 @@ class GradeTest extends TestCase
 
     public function test_store_grade_fails_without_student_info(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/grades', [
                 'exam_id' => $this->exam->id,
                 'class_id' => $this->class->id,
@@ -108,7 +109,7 @@ class GradeTest extends TestCase
             'class_id' => $this->class->id,
         ]);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/grades?exam_id='.$this->exam->id);
 
         $response->assertStatus(200)
@@ -124,7 +125,7 @@ class GradeTest extends TestCase
             'score' => 8.0,
         ]);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->putJson('/api/grades/'.$grade->id, [
                 'total_correct' => 45,
                 'score' => 9.0,

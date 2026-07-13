@@ -9,6 +9,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
+use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 class AuthController extends Controller
 {
@@ -19,9 +21,9 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $user = User::where('email', $request->email)->first();
+        $credentials = $request->only('email', 'password');
 
-        if (! $user || ! Hash::check($request->password, $user->password)) {
+        if (!$token = JWTAuth::attempt($credentials)) {
             Log::warning('Login failed', ['email' => $request->email]);
 
             return response()->json([
@@ -30,19 +32,11 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        $user = auth()->user();
 
         Log::info('Login successful', ['user_id' => $user->id, 'email' => $user->email]);
 
-        return response()->json([
-            'token' => $token,
-            'user' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'role' => $user->role,
-            ],
-        ]);
+        return $this->respondWithToken($token, $user);
     }
 
     public function register(Request $request): JsonResponse
@@ -57,9 +51,10 @@ class AuthController extends Controller
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
-            'password' => $request->password,
-            'role' => 'teacher',
+            'password' => Hash::make($request->password),
         ]);
+
+        $user->assignRole('teacher');
 
         if ($request->class_code) {
             $class = SchoolClass::where('code', $request->class_code)->first();
@@ -68,31 +63,79 @@ class AuthController extends Controller
             }
         }
 
-        $token = $user->createToken('mobile-app')->plainTextToken;
+        $token = JWTAuth::fromUser($user);
 
         Log::info('User registered', ['user_id' => $user->id, 'email' => $user->email]);
 
+        return $this->respondWithToken($token, $user, 201);
+    }
+
+    public function me(): JsonResponse
+    {
+        $user = auth()->user()->load('classes');
+        $user->load('roles');
+
         return response()->json([
-            'token' => $token,
             'user' => [
                 'id' => $user->id,
                 'name' => $user->name,
                 'email' => $user->email,
-                'role' => $user->role,
+                'roles' => $user->getRoleNames(),
+                'permissions' => $user->getAllPermissions()->pluck('name'),
+                'classes' => $user->classes,
             ],
-        ], 201);
+        ]);
     }
 
     public function logout(Request $request): JsonResponse
     {
-        $token = $request->user()->currentAccessToken();
+        try {
+            JWTAuth::invalidate(JWTAuth::getToken());
 
-        if ($token) {
-            $token->delete();
+            Log::info('User logged out', ['user_id' => auth()->id()]);
+
+            return response()->json(['message' => 'Đã đăng xuất.']);
+        } catch (JWTException $e) {
+            return response()->json(['message' => 'Đã đăng xuất.'], 200);
+        }
+    }
+
+    public function refresh(): JsonResponse
+    {
+        try {
+            $token = JWTAuth::refresh(JWTAuth::getToken());
+            $user = auth()->user();
+
+            return $this->respondWithToken($token, $user);
+        } catch (JWTException $e) {
+            return response()->json([
+                'error' => 'TOKEN_INVALID',
+                'message' => 'Token không hợp lệ hoặc đã hết hạn.',
+            ], 401);
+        }
+    }
+
+    protected function respondWithToken(string $token, ?User $user = null, int $status = 200): JsonResponse
+    {
+        $ttl = config('jwt.ttl', 60);
+
+        $data = [
+            'access_token' => $token,
+            'token_type' => 'bearer',
+            'expires_in' => $ttl * 60,
+        ];
+
+        if ($user) {
+            $user->load('classes');
+            $data['user'] = [
+                'id' => $user->id,
+                'name' => $user->name,
+                'email' => $user->email,
+                'roles' => $user->getRoleNames(),
+                'permissions' => $user->getAllPermissions()->pluck('name'),
+            ];
         }
 
-        Log::info('User logged out', ['user_id' => $request->user()->id]);
-
-        return response()->json(['message' => 'Đã đăng xuất.']);
+        return response()->json($data, $status);
     }
 }

@@ -4,6 +4,10 @@ node_modules/
 *.log
 .env
 
+# Deploy artifacts (may contain a bundled .env with secrets)
+*.zip
+backend-deploy.zip
+
 # Backend (Laravel)
 backend/vendor/
 backend/storage/*.key

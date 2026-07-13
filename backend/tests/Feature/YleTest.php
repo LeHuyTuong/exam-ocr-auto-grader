@@ -13,8 +13,6 @@ use App\Models\Yle\YleQuestion;
 use App\Models\Yle\YleAnswer;
 use App\Support\YleTemplates;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
-use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class YleTest extends TestCase
@@ -30,7 +28,8 @@ class YleTest extends TestCase
     {
         parent::setUp();
 
-        $this->user = User::factory()->create(['role' => 'admin']);
+        $this->setUpJwtAuth();
+        $this->user = $this->jwtAsAdmin();
         $this->class = SchoolClass::factory()->create();
         $this->user->classes()->attach($this->class->id);
         $this->student = Student::factory()->create([
@@ -38,7 +37,6 @@ class YleTest extends TestCase
             'full_name' => 'Nguyen Van A',
         ]);
 
-        // Create exam from template
         $template = YleTemplates::get('starters', 'listening');
         $this->exam = YleExam::create([
             'level' => 'starters',
@@ -58,7 +56,6 @@ class YleTest extends TestCase
             }
         }
 
-        // Set answer key for auto-gradable parts (Part 2 + Part 3)
         $part2 = YlePart::where('yle_exam_id', $this->exam->id)->where('part_number', 2)->first();
         foreach ($part2->questions as $q) {
             if ($q->question_number <= 3) {
@@ -76,7 +73,7 @@ class YleTest extends TestCase
 
     public function test_list_exams(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/yle/exams');
 
         $response->assertStatus(200)
@@ -85,7 +82,7 @@ class YleTest extends TestCase
 
     public function test_create_exam_from_template(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/yle/exams', [
                 'level' => 'starters',
                 'skill' => 'listening',
@@ -103,7 +100,7 @@ class YleTest extends TestCase
 
     public function test_create_exam_invalid_level(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/yle/exams', [
                 'level' => 'invalid',
                 'skill' => 'listening',
@@ -117,7 +114,7 @@ class YleTest extends TestCase
         $question = YleQuestion::whereHas('part', fn ($q) => $q->where('yle_exam_id', $this->exam->id))
             ->first();
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->putJson("/api/yle/questions/{$question->id}", [
                 'correct_answer' => 'A',
                 'accepted_variants' => ['a', 'A'],
@@ -132,7 +129,7 @@ class YleTest extends TestCase
 
     public function test_create_submission(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/yle/submissions', [
                 'yle_exam_id' => $this->exam->id,
                 'class_id' => $this->class->id,
@@ -147,9 +144,9 @@ class YleTest extends TestCase
     public function test_create_submission_forbidden_class(): void
     {
         $otherClass = SchoolClass::factory()->create();
-        $otherUser = User::factory()->create(['role' => 'teacher']);
+        $otherUser = $this->jwtAsTeacher();
 
-        $response = $this->actingAs($otherUser)
+        $response = $this->withHeaders($this->jwtAs($otherUser))
             ->postJson('/api/yle/submissions', [
                 'yle_exam_id' => $this->exam->id,
                 'class_id' => $this->class->id,
@@ -170,7 +167,7 @@ class YleTest extends TestCase
             'created_by' => $this->user->id,
         ]);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->putJson("/api/yle/submissions/{$submission->id}/student", [
                 'student_id' => $this->student->id,
             ]);
@@ -201,7 +198,7 @@ class YleTest extends TestCase
             'created_by' => $this->user->id,
         ]);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->putJson("/api/yle/submissions/{$sub2->id}/student", [
                 'student_id' => $this->student->id,
             ]);
@@ -224,7 +221,7 @@ class YleTest extends TestCase
         $part1 = YlePart::where('yle_exam_id', $this->exam->id)->where('part_number', 1)->first();
         $part4 = YlePart::where('yle_exam_id', $this->exam->id)->where('part_number', 4)->first();
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson("/api/yle/submissions/{$submission->id}/manual", [
                 'marks' => [
                     ['part_id' => $part1->id, 'marks' => 4],
@@ -260,7 +257,7 @@ class YleTest extends TestCase
             ]);
         }
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson("/api/yle/submissions/{$submission->id}");
 
         $response->assertStatus(200)

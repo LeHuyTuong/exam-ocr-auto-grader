@@ -7,24 +7,27 @@ use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
 {
     public function run(): void
     {
+        $this->call(RolePermissionSeeder::class);
+
         $admin = User::factory()->create([
             'name' => 'Admin',
             'email' => 'admin@chamthi.com',
-            'password' => bcrypt('admin123'),
-            'role' => 'admin',
+            'password' => Hash::make('admin123'),
         ]);
+        $admin->assignRole('admin');
 
         $teacher = User::factory()->create([
             'name' => 'Cô Giáo A',
             'email' => 'coa@chamthi.com',
-            'password' => bcrypt('teacher123'),
-            'role' => 'teacher',
+            'password' => Hash::make('teacher123'),
         ]);
+        $teacher->assignRole('teacher');
 
         $class = SchoolClass::create([
             'code' => 'TA-101',

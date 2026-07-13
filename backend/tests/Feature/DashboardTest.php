@@ -22,7 +22,8 @@ class DashboardTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        $this->user = User::factory()->create();
+        $this->setUpJwtAuth();
+        $this->user = $this->jwtAsTeacher();
         $this->class = SchoolClass::factory()->create();
         $this->user->classes()->attach($this->class->id);
         $this->exam = Exam::factory()->create([
@@ -40,7 +41,7 @@ class DashboardTest extends TestCase
 
     public function test_class_stats(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/dashboard/class/'.$this->class->id);
 
         $response->assertStatus(200)
@@ -57,7 +58,7 @@ class DashboardTest extends TestCase
 
     public function test_student_stats(): void
     {
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/dashboard/class/'.$this->class->id.'/students');
 
         $response->assertStatus(200)
@@ -80,12 +81,12 @@ class DashboardTest extends TestCase
 
     public function test_forbidden_user_cannot_access_other_class(): void
     {
-        $otherUser = User::factory()->create();
+        $otherUser = $this->jwtAsTeacher();
         $otherClass = SchoolClass::factory()->create();
         $otherUser->classes()->attach($otherClass->id);
         Student::factory()->create(['class_id' => $otherClass->id]);
 
-        $response = $this->actingAs($this->user)
+        $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/dashboard/class/'.$otherClass->id);
 
         $response->assertStatus(403);
