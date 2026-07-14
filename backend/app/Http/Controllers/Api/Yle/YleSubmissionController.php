@@ -12,9 +12,11 @@ use App\Models\Yle\YleSubmissionPage;
 use App\Services\CloudinaryService;
 use App\Services\FuzzyMatchService;
 use App\Services\Vision\AnswerSheetExtractor;
+use App\Services\Vision\PageAnswers;
 use App\Services\YleGradingService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class YleSubmissionController extends Controller
@@ -26,11 +28,12 @@ class YleSubmissionController extends Controller
         private YleGradingService $grading,
     ) {}
 
-    private function authorizeAccess(YleSubmission $submission, \Illuminate\Http\Request $request): bool
+    private function authorizeAccess(YleSubmission $submission, Request $request): bool
     {
         if ($request->user()->isAdmin()) {
             return true;
         }
+
         return $request->user()->classes()->where('class_id', $submission->class_id)->exists();
     }
 
@@ -90,7 +93,7 @@ class YleSubmissionController extends Controller
                 "yle/{$submission->yle_exam_id}/{$id}"
             );
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::warning('YLE cloudinary upload failed', [
+            Log::warning('YLE cloudinary upload failed', [
                 'submission_id' => $id,
                 'page_number' => $pageNumber,
                 'error' => $e->getMessage(),
@@ -107,7 +110,7 @@ class YleSubmissionController extends Controller
         try {
             $result = $this->processPage($submission, $page, $request);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('YLE processPage failed', [
+            Log::error('YLE processPage failed', [
                 'submission_id' => $id,
                 'page_number' => $pageNumber,
                 'error' => $e->getMessage(),
@@ -357,6 +360,7 @@ class YleSubmissionController extends Controller
             'parts' => $partsOnPage->map(fn ($part) => [
                 'partNumber' => $part->part_number,
                 'questionType' => $part->question_type,
+                'autoGradable' => (bool) $part->is_auto_gradable,
                 'questions' => $part->questions->map(fn ($q) => [
                     'questionNumber' => $q->question_number,
                 ]),
@@ -365,6 +369,14 @@ class YleSubmissionController extends Controller
 
         $hasAutoParts = $partsOnPage->where('is_auto_gradable', true)->isNotEmpty();
 
+        // Every gradable (partNumber:questionNumber) the AI must return for this page.
+        $expectedKeys = [];
+        foreach ($partsOnPage->where('is_auto_gradable', true) as $part) {
+            foreach ($part->questions as $q) {
+                $expectedKeys[] = "{$part->part_number}:{$q->question_number}";
+            }
+        }
+
         $imagePath = $request->file('image')->getRealPath();
         $imageBytes = file_get_contents($imagePath);
 
@@ -372,19 +384,46 @@ class YleSubmissionController extends Controller
         $candidates = [];
         $returnedAnswers = [];
 
+        $extractionIncomplete = false;
+
         // Call AI when page has auto parts OR it's page 1 (to extract student name)
         if ($hasAutoParts || $pageNumber === 1) {
             $mlkitHint = $request->input('mlkit_hint');
 
-            try {
-                $result = $this->extractor->extractAnswers($imageBytes, $pageSpec, $mlkitHint);
-            } catch (\Throwable $e) {
-                \Illuminate\Support\Facades\Log::error('YLE extract failed', [
-                    'submission_id' => $submission->id,
-                    'page_number' => $pageNumber,
-                    'error' => $e->getMessage(),
-                ]);
+            // Retry up to 2 extra times when the AI drops gradable questions; each
+            // retry nudges the model to return every listed question.
+            $maxAttempts = 3;
+            for ($attempt = 1; $attempt <= $maxAttempts; $attempt++) {
+                try {
+                    $result = $this->extractor->extractAnswers($imageBytes, $pageSpec, $mlkitHint, $attempt);
+                } catch (\Throwable $e) {
+                    $result = null;
+                    Log::error('YLE extract failed', [
+                        'submission_id' => $submission->id,
+                        'page_number' => $pageNumber,
+                        'attempt' => $attempt,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+
+                if ($result && $this->answersCoverExpected($result, $expectedKeys)) {
+                    break;
+                }
+
+                if ($result) {
+                    Log::warning('YLE extract incomplete, retrying', [
+                        'submission_id' => $submission->id,
+                        'page_number' => $pageNumber,
+                        'attempt' => $attempt,
+                        'expected' => count($expectedKeys),
+                        'returned' => count($result->answers),
+                    ]);
+                }
             }
+
+            // A missing/short result on a page that should have answers → needs teacher review.
+            $extractionIncomplete = ! empty($expectedKeys)
+                && (! $result || ! $this->answersCoverExpected($result, $expectedKeys));
 
             if ($result) {
                 $page->update(['ai_raw_response' => [
@@ -449,11 +488,22 @@ class YleSubmissionController extends Controller
         $exam = $submission->fresh()->exam;
         $uploadedPages = YleSubmissionPage::where('yle_submission_id', $submission->id)->count();
         if ($uploadedPages >= $exam->total_pages) {
-            $hasNeedsReview = YleAnswer::where('yle_submission_id', $submission->id)
+            $lowConfidence = YleAnswer::where('yle_submission_id', $submission->id)
                 ->where('graded_by', 'auto')
                 ->where('ai_confidence', '<', 0.6)
                 ->exists();
-            $submission->update(['status' => $hasNeedsReview ? 'needs_review' : 'auto_graded']);
+
+            // Coverage: did every gradable question across all pages get an AI answer?
+            $expectedAutoCount = YleQuestion::whereHas('part', function ($q) use ($exam) {
+                $q->where('yle_exam_id', $exam->id)->where('is_auto_gradable', true);
+            })->count();
+            $autoAnsweredCount = YleAnswer::where('yle_submission_id', $submission->id)
+                ->where('graded_by', 'auto')
+                ->count();
+            $coverageIncomplete = $autoAnsweredCount < $expectedAutoCount;
+
+            $needsReview = $lowConfidence || $coverageIncomplete || $extractionIncomplete;
+            $submission->update(['status' => $needsReview ? 'needs_review' : 'auto_graded']);
         } elseif ($hasAutoParts && ! empty($returnedAnswers)) {
             $submission->update(['status' => 'grading']);
         }
@@ -462,6 +512,32 @@ class YleSubmissionController extends Controller
             'answers' => $returnedAnswers,
             'candidates' => $candidates,
         ];
+    }
+
+    /**
+     * True when the AI returned an entry for every expected gradable question.
+     * A blank ("") value still counts as covered — only a missing question fails.
+     *
+     * @param  string[]  $expectedKeys  "partNumber:questionNumber" strings
+     */
+    private function answersCoverExpected(PageAnswers $result, array $expectedKeys): bool
+    {
+        if (empty($expectedKeys)) {
+            return true;
+        }
+
+        $got = [];
+        foreach ($result->answers as $answer) {
+            $got["{$answer->partNumber}:{$answer->questionNumber}"] = true;
+        }
+
+        foreach ($expectedKeys as $key) {
+            if (! isset($got[$key])) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     private function recalculateTotals(YleSubmission $submission): void

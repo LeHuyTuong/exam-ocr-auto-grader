@@ -18,7 +18,7 @@ class GeminiAnswerSheetExtractor implements AnswerSheetExtractor
         $this->model = config('services.gemini.model', 'gemini-2.5-flash');
     }
 
-    public function extractAnswers(string $imageBytes, array $pageSpec, ?string $mlkitHint): PageAnswers
+    public function extractAnswers(string $imageBytes, array $pageSpec, ?string $mlkitHint, int $attempt = 1): PageAnswers
     {
         if (empty($this->apiKeys)) {
             throw new \RuntimeException('No Gemini API keys configured');
@@ -29,7 +29,7 @@ class GeminiAnswerSheetExtractor implements AnswerSheetExtractor
                 [
                     'role' => 'user',
                     'parts' => [
-                        ['text' => $this->buildPrompt($pageSpec, $mlkitHint)],
+                        ['text' => AnswerSheetPrompt::build($pageSpec, $mlkitHint, $attempt)],
                         [
                             'inline_data' => [
                                 'mime_type' => $this->detectMimeType($imageBytes),
@@ -124,51 +124,6 @@ class GeminiAnswerSheetExtractor implements AnswerSheetExtractor
     private function url(): string
     {
         return "https://generativelanguage.googleapis.com/v1beta/models/{$this->model}:generateContent";
-    }
-
-    private function buildPrompt(array $pageSpec, ?string $mlkitHint): string
-    {
-        $pageNumber = $pageSpec['pageNumber'];
-        $parts = $pageSpec['parts'] ?? [];
-
-        $partsDesc = '';
-        foreach ($parts as $part) {
-            $qNums = array_map(fn ($q) => $q['questionNumber'], $part['questions'] ?? []);
-            $qNumsStr = implode(', ', $qNums);
-            $partsDesc .= "- Part {$part['partNumber']} ({$part['questionType']}): questions [$qNumsStr]\n";
-        }
-
-        $hint = $mlkitHint
-            ? "\nML Kit OCR hint (use if readable): \"{$mlkitHint}\""
-            : '';
-
-        $nameInstr = $pageNumber === 1
-            ? '- "studentName": the student\'s full name written on the paper (may be at top of page). If not found, omit or set to empty string.'
-            : '';
-
-        return <<<PROMPT
-You are a Cambridge YLE exam assistant. Read the exam page image and extract student answers.
-
-Page number: {$pageNumber}
-
-This page contains the following parts:
-{$partsDesc}
-
-Rules:
-{$nameInstr}
-- For each question in the listed parts, extract the student's answer exactly as written.
-- For "mcq_abc": answer is A, B, or C (the letter that is ticked/crossed).
-- For "fill_blank": answer is the word or number written.
-- For "tick_cross": answer is "tick" (✓) or "cross" (✗).
-- For "yes_no": answer is "yes" or "no".
-- For "word_from_box", "one_word", "word_order": answer is the word(s) as written.
-- Do NOT extract answers for parts not listed on this page.
-- If no auto-gradable parts exist on this page, return an empty answers array.
-- Set "confidence" (0-1) for each answer based on how clearly the handwriting is readable.
-- Set overall "confidence" (0-1) for the whole page.
-- Return ONLY valid JSON, no extra text.
-{$hint}
-PROMPT;
     }
 
     private function detectMimeType(string $bytes): string

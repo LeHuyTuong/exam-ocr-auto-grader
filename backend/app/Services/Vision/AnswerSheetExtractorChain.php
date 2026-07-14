@@ -9,13 +9,13 @@ class AnswerSheetExtractorChain implements AnswerSheetExtractor
     /** @param AnswerSheetExtractor[] $extractors */
     public function __construct(private readonly array $extractors) {}
 
-    public function extractAnswers(string $imageBytes, array $pageSpec, ?string $mlkitHint): PageAnswers
+    public function extractAnswers(string $imageBytes, array $pageSpec, ?string $mlkitHint, int $attempt = 1): PageAnswers
     {
         $errors = [];
 
         foreach ($this->extractors as $extractor) {
             try {
-                return $extractor->extractAnswers($imageBytes, $pageSpec, $mlkitHint);
+                return $extractor->extractAnswers($imageBytes, $pageSpec, $mlkitHint, $attempt);
             } catch (\Throwable $e) {
                 $errors[] = get_class($extractor).': '.$e->getMessage();
                 Log::warning('Answer sheet extractor failed, trying next provider', [
