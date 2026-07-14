@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../services/exam_service.dart';
 import '../services/mlkit_service.dart';
 import '../widgets/scan_overlay.dart';
@@ -89,6 +90,24 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
   Future<void> _initCamera() async {
     try {
+      // Android 6+ bắt buộc xin quyền camera lúc chạy; thiếu quyền thì
+      // availableCameras() trả rỗng và màn hình cứ đen mãi.
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Cần cấp quyền Camera để quét bài thi.'),
+              action: SnackBarAction(
+                label: 'Mở Cài đặt',
+                onPressed: openAppSettings,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) return;
       final camera = _cameras!.firstWhere(

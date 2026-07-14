@@ -14,6 +14,7 @@ dependencies:
   flutter_secure_storage: ^9.0.0
   camera: ^0.11.0+2
   google_mlkit_text_recognition: ^0.13.0
+  permission_handler: ^11.3.1
   provider: ^6.1.1
   intl: ^0.19.0
 
