@@ -1,4 +1,4 @@
-name: Deploy backend to cPanel (FTP)
+name: Deploy backend to cPanel (zip + FTP)
 
 # Chạy khi push vào main có thay đổi ở backend/, hoặc bấm tay trong tab Actions.
 on:
@@ -11,11 +11,12 @@ on:
 
 concurrency:
   group: deploy-production
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,34 +31,39 @@ jobs:
         working-directory: backend
         run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
-      - name: Upload via FTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          # Đổi thành 'ftps' nếu host bắt buộc FTP-SSL.
-          protocol: ftp
-          local-dir: ./backend/
-          server-dir: ${{ secrets.FTP_SERVER_DIR }}
-          # KHÔNG đụng .env / storage runtime của production.
-          exclude: |
-            **/.git*
-            **/.git*/**
-            **/.github/**
-            **/.env
-            **/.env.*
-            **/node_modules/**
-            **/tests/**
-            storage/logs/**
-            storage/framework/cache/**
-            storage/framework/sessions/**
-            storage/framework/views/**
-            database/database.sqlite
-
-      - name: Run migrations & seed (secured endpoint)
+      - name: Build deploy zip
+        working-directory: backend
         run: |
-          echo "Gọi deploy hook để migrate + seed..."
-          curl -fsS "https://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}" \
-            || curl -fsS "http://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}"
+          zip -r -q -X ../deploy.zip . \
+            -x ".env" \
+            -x ".git/*" \
+            -x ".github/*" \
+            -x "node_modules/*" \
+            -x "tests/*" \
+            -x "storage/logs/*" \
+            -x "storage/framework/cache/*" \
+            -x "storage/framework/sessions/*" \
+            -x "storage/framework/views/*" \
+            -x "database/database.sqlite"
+
+      - name: Upload single zip via FTP
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          FTP_SERVER_DIR: ${{ secrets.FTP_SERVER_DIR }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y lftp
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" -e "
+            set ftp:ssl-allow no;
+            set net:max-retries 3;
+            set net:timeout 30;
+            put deploy.zip -o ${FTP_SERVER_DIR}deploy.zip;
+            bye"
+
+      - name: Extract + migrate + seed on server
+        run: |
+          echo "Gọi deploy hook (giải nén + migrate + seed)..."
+          curl -fsS --max-time 300 "https://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}" \
+            || curl -fsS --max-time 300 "http://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}"
           echo ""

@@ -24,9 +24,23 @@ Route::get('/__deploy', function (Request $request) {
 
     $result = [];
 
-    // Xóa cache config để .env mới (JWT_SECRET) được đọc lại.
-    Artisan::call('config:clear');
-    Artisan::call('cache:clear');
+    // Nếu CI đã upload deploy.zip lên (Laravel root) thì giải nén server-side
+    // rồi xóa — nhanh hơn nhiều so với FTP từng file cho host cPanel FTP-only.
+    $zipPath = base_path('deploy.zip');
+    if (is_file($zipPath)) {
+        $zip = new \ZipArchive();
+        if ($zip->open($zipPath) === true) {
+            $zip->extractTo(base_path());
+            $zip->close();
+            @unlink($zipPath);
+            $result['extract'] = 'ok';
+        } else {
+            $result['extract'] = 'ERROR: không mở được deploy.zip';
+        }
+    }
+
+    // Xóa mọi cache (config/route/view) để code + .env mới được áp dụng.
+    Artisan::call('optimize:clear');
 
     Artisan::call('migrate', ['--force' => true]);
     $result['migrate'] = Artisan::output();
