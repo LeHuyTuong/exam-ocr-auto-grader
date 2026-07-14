@@ -19,7 +19,7 @@ abstract class OpenAiCompatibleAnswerSheetExtractor implements AnswerSheetExtrac
         $this->baseUrl = rtrim($baseUrl, '/');
     }
 
-    public function extractAnswers(string $imageBytes, array $pageSpec, ?string $mlkitHint): PageAnswers
+    public function extractAnswers(string $imageBytes, array $pageSpec, ?string $mlkitHint, int $attempt = 1): PageAnswers
     {
         $mime = $this->detectMimeType($imageBytes);
 
@@ -34,7 +34,7 @@ abstract class OpenAiCompatibleAnswerSheetExtractor implements AnswerSheetExtrac
                     [
                         'role' => 'user',
                         'content' => [
-                            ['type' => 'text', 'text' => $this->buildPrompt($pageSpec, $mlkitHint)],
+                            ['type' => 'text', 'text' => AnswerSheetPrompt::build($pageSpec, $mlkitHint, $attempt)],
                             [
                                 'type' => 'image_url',
                                 'image_url' => [
@@ -88,52 +88,6 @@ abstract class OpenAiCompatibleAnswerSheetExtractor implements AnswerSheetExtrac
             studentName: isset($data['studentName']) ? trim($data['studentName']) : null,
             confidence: (float) $data['confidence'],
         );
-    }
-
-    private function buildPrompt(array $pageSpec, ?string $mlkitHint): string
-    {
-        $pageNumber = $pageSpec['pageNumber'];
-        $parts = $pageSpec['parts'] ?? [];
-
-        $partsDesc = '';
-        foreach ($parts as $part) {
-            $qNums = array_map(fn ($q) => $q['questionNumber'], $part['questions'] ?? []);
-            $qNumsStr = implode(', ', $qNums);
-            $partsDesc .= "- Part {$part['partNumber']} ({$part['questionType']}): questions [$qNumsStr]\n";
-        }
-
-        $hint = $mlkitHint
-            ? "\nML Kit OCR hint (use if readable): \"{$mlkitHint}\""
-            : '';
-
-        $nameInstr = $pageNumber === 1
-            ? '- "studentName": the student\'s full name written on the paper (may be at top of page). If not found, omit or set to empty string.'
-            : '';
-
-        return <<<PROMPT
-You are a Cambridge YLE exam assistant. Read the exam page image and extract student answers.
-
-Page number: {$pageNumber}
-
-This page contains the following parts:
-{$partsDesc}
-
-Rules:
-{$nameInstr}
-- For each question in the listed parts, extract the student's answer exactly as written.
-- For "mcq_abc": answer is A, B, or C (the letter that is ticked/crossed).
-- For "fill_blank": answer is the word or number written.
-- For "tick_cross": answer is "tick" (✓) or "cross" (✗).
-- For "yes_no": answer is "yes" or "no".
-- For "word_from_box", "one_word", "word_order": answer is the word(s) as written.
-- Do NOT extract answers for parts not listed on this page.
-- If no auto-gradable parts exist on this page, return an empty answers array.
-- Set "confidence" (0-1) for each answer based on how clearly the handwriting is readable.
-- Set overall "confidence" (0-1) for the whole page.
-- Return ONLY valid JSON in this format: {"answers":[{"partNumber":1,"questionNumber":2,"value":"...","confidence":0.9}],"studentName":"...","confidence":0.9}
-- No extra text.
-{$hint}
-PROMPT;
     }
 
     private function detectMimeType(string $bytes): string
