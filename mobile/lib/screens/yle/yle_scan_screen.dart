@@ -202,6 +202,17 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
 
       if (_submission == null) {
         _resetAfterCapture();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('Chưa tạo được phiên chấm, thử lại.'),
+              action: SnackBarAction(
+                label: 'Thử lại',
+                onPressed: _createSubmission,
+              ),
+            ),
+          );
+        }
         return;
       }
 
@@ -237,7 +248,7 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
             builder: (_) => YleStudentConfirmScreen(
               submissionId: _submission!.id,
               classId: widget.classId,
-              ocrRawName: _submission!.ocrRawName,
+              ocrRawName: uploadResult['ocrRawName'] as String? ?? '',
               candidates: candidates,
               answers: answers,
             ),

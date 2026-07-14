@@ -96,6 +96,7 @@ class _QuickConfirmSheetState extends State<QuickConfirmSheet> {
 
   double get _score {
     final correct = int.tryParse(_correctCtrl.text) ?? 0;
+    if (widget.totalQuestions <= 0) return 0;
     return (correct / widget.totalQuestions) * widget.maxScore;
   }
 
@@ -116,12 +117,8 @@ class _QuickConfirmSheetState extends State<QuickConfirmSheet> {
         createNewStudent: _createNew,
         newStudentName: _createNew ? _nameCtrl.text : null,
       );
-      setState(() => _saved = true);
-      if (mounted) {
-        Future.delayed(const Duration(milliseconds: 300), () {
-          if (mounted) widget.onSaved();
-        });
-      }
+      widget.onSaved();
+      if (mounted) setState(() => _saved = true);
     } catch (e) {
       setState(() => _saving = false);
       String message = 'Lỗi lưu: $e';
@@ -139,7 +136,7 @@ class _QuickConfirmSheetState extends State<QuickConfirmSheet> {
   void _cancelAutoSave() {
     _countdownActive = false;
     _countdownTimer?.cancel();
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   @override

@@ -140,6 +140,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
   }
 
   void _startImageStream() {
+    if (_cameraController == null || _cameraController!.value.isStreamingImages) return;
     _streaming = true;
     _cameraController?.startImageStream(_processCameraImage);
   }
@@ -247,7 +248,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
           Navigator.pop(ctx);
         },
         onEditDetail: () {
+          _processing = false;
           Navigator.pop(ctx);
+          _stopCamera();
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -260,11 +263,10 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
                   setState(() {
                     _gradedCount++;
                   });
-                  _resetAfterCapture();
                 },
               ),
             ),
-          );
+          ).then((_) => _initCamera());
         },
       ),
     ).whenComplete(() {

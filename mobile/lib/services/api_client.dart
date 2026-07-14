@@ -10,6 +10,8 @@ class ApiClient {
   late Dio _dio;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
 
+  VoidCallback? onSessionExpired;
+
   static const String _baseUrlKey = 'api_url';
   static const String _tokenKey = 'auth_token';
   static const String _tokenExpiryKey = 'token_expiry';
@@ -44,18 +46,28 @@ class ApiClient {
         handler.next(options);
       },
       onError: (error, handler) async {
-        if (error.response?.statusCode == 401 && !_refreshing) {
-          final refreshed = await _tryRefreshToken();
-          if (refreshed) {
-            final token = await _storage.read(key: _tokenKey);
-            error.requestOptions.headers['Authorization'] = 'Bearer $token';
-            try {
-              final response = await _dio.fetch(error.requestOptions);
-              handler.resolve(response);
-              return;
-            } catch (e) {
-              handler.next(error);
-              return;
+        if (error.response?.statusCode == 401) {
+          if (error.requestOptions.extra['_retried'] == true) {
+            onSessionExpired?.call();
+            handler.next(error);
+            return;
+          }
+          if (!_refreshing) {
+            final refreshed = await _tryRefreshToken();
+            if (refreshed) {
+              final token = await _storage.read(key: _tokenKey);
+              error.requestOptions.extra['_retried'] = true;
+              error.requestOptions.headers['Authorization'] = 'Bearer $token';
+              try {
+                final response = await _dio.fetch(error.requestOptions);
+                handler.resolve(response);
+                return;
+              } catch (e) {
+                handler.next(error);
+                return;
+              }
+            } else {
+              onSessionExpired?.call();
             }
           }
         }

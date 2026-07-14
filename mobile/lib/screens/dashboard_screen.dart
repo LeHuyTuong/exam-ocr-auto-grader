@@ -113,7 +113,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _formatScore(dynamic score) {
     if (score == null) return '-';
-    return (score as num).toStringAsFixed(1);
+    final n = score is num ? score : num.tryParse(score.toString());
+    return (n ?? 0).toStringAsFixed(1);
   }
 
   @override

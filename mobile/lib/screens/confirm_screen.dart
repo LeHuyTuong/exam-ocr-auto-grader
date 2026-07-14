@@ -62,7 +62,9 @@ class _ConfirmScreenState extends State<ConfirmScreen> {
   void _updateScore() {
     final correct = int.tryParse(_correctCtrl.text) ?? 0;
     setState(() {
-      _score = (correct / widget.totalQuestions) * widget.maxScore;
+      _score = widget.totalQuestions > 0
+          ? (correct / widget.totalQuestions) * widget.maxScore
+          : 0;
     });
   }
 
@@ -173,7 +175,7 @@ class _ConfirmScreenState extends State<ConfirmScreen> {
               decoration: const InputDecoration(
                 labelText: 'Tên học sinh',
               ),
-              onChanged: (_) => setState(() => _createNew = true),
+              onChanged: (_) => setState(() {}),
             ),
             if (widget.extractResult.candidates.isNotEmpty &&
                 !_createNew) ...[

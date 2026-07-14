@@ -6,6 +6,7 @@ import 'class_select_screen.dart';
 import 'dashboard_screen.dart';
 import 'grade_list_screen.dart';
 import 'settings_screen.dart';
+import 'yle/yle_home_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -170,6 +171,53 @@ class HomeScreen extends StatelessWidget {
                         const SizedBox(height: 4),
                         Text(
                           'Theo dõi kết quả học tập',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.arrow_forward_ios,
+                    size: 16,
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+            AppCard(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const YleHomeScreen()),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.primaryContainer,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.school,
+                      size: 32,
+                      color: theme.colorScheme.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Chấm đề Cambridge YLE',
+                          style: theme.textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Quét và chấm bài thi Cambridge Starters/Movers/Flyers',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),

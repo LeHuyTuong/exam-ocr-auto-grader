@@ -238,8 +238,15 @@ class _ExamDialogState extends State<_ExamDialog> {
         ),
         FilledButton(
           onPressed: () {
+            final q = int.tryParse(_questionsCtrl.text);
+            if (q == null || q <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Số câu hỏi phải lớn hơn 0')),
+              );
+              return;
+            }
             Navigator.pop(context, {
-              'totalQuestions': int.tryParse(_questionsCtrl.text) ?? 50,
+              'totalQuestions': q,
               'maxScore': int.tryParse(_maxScoreCtrl.text),
             });
           },

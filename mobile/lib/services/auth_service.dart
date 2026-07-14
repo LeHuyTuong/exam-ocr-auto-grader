@@ -8,6 +8,10 @@ class AuthService extends ChangeNotifier {
   bool _loading = false;
   bool _restored = false;
 
+  AuthService() {
+    _api.onSessionExpired = _handleSessionExpired;
+  }
+
   User? get user => _user;
   bool get isAuthenticated => _user != null;
   bool get loading => _loading;
@@ -94,6 +98,11 @@ class AuthService extends ChangeNotifier {
       await _api.post('/auth/logout');
     } catch (_) {}
     await _api.clearToken();
+    _user = null;
+    notifyListeners();
+  }
+
+  void _handleSessionExpired() {
     _user = null;
     notifyListeners();
   }
