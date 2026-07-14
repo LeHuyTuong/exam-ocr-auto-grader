@@ -1,0 +1,48 @@
+name: Build Android APK (debug-signed, for testing)
+
+# Build APK để cài test tay. APK ký bằng debug key (app đang cấu hình vậy),
+# CÀI ĐỂ TEST được nhưng KHÔNG dùng phát hành Play Store.
+# Chạy khi đụng mobile/ trên develop|main, hoặc bấm tay trong tab Actions.
+on:
+  push:
+    branches: [develop, main]
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/apk.yml'
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter (stable)
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Build release APK (debug-signed)
+        working-directory: mobile
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chamthi-apk-${{ github.ref_name }}-${{ github.sha }}
+          path: mobile/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

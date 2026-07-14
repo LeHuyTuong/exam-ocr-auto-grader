@@ -1,20 +1,25 @@
 name: Deploy backend to cPanel (zip + FTP)
 
-# Chạy khi push vào main có thay đổi ở backend/, hoặc bấm tay trong tab Actions.
+# Deploy theo nhánh (cùng 1 cPanel, thư mục + DB riêng):
+#   - push main    -> PRODUCTION (carbonx.io.vn)
+#   - push develop -> DEV/STAGING (dev.carbonx.io.vn)
+# Chạy khi có thay đổi ở backend/ hoặc file workflow này, hoặc bấm tay.
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
     paths:
       - 'backend/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:
 
+# Không cho 2 lần deploy CÙNG một môi trường chồng nhau; nhưng prod và dev
+# deploy song song được (group tách theo nhánh).
 concurrency:
-  group: deploy-production
+  group: deploy-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
-  # Cổng chặn: test phải pass thì mới cho deploy. Kể cả push thẳng vào main
+  # Cổng chặn: test phải pass thì mới cho deploy. Kể cả push thẳng vào nhánh
   # mà test fail thì KHÔNG deploy.
   test:
     runs-on: ubuntu-latest
@@ -46,21 +51,59 @@ jobs:
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    env:
+      FTP_SERVER: ${{ secrets.FTP_SERVER }}
+      FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+      FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+      # PRODUCTION (main) — giữ giá trị mặc định như cũ nếu chưa đặt secret.
+      PROD_WEB_DIR: ${{ secrets.FTP_WEB_DIR || 'public_html' }}
+      PROD_DEPLOY_URL: ${{ secrets.DEPLOY_URL || 'https://carbonx.io.vn' }}
+      PROD_DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+      # DEV (develop) — cần đặt các secret *_DEV; nếu thiếu sẽ bỏ qua deploy.
+      DEV_WEB_DIR: ${{ secrets.FTP_WEB_DIR_DEV }}
+      DEV_DEPLOY_URL: ${{ secrets.DEPLOY_URL_DEV || 'https://dev.carbonx.io.vn' }}
+      DEV_DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN_DEV }}
     steps:
+      - name: Resolve deploy target (theo nhánh)
+        run: |
+          if [ "${{ github.ref_name }}" = "main" ]; then
+            ENVNAME="production"
+            echo "WEB_DIR=$PROD_WEB_DIR" >> "$GITHUB_ENV"
+            echo "DEPLOY_URL=$PROD_DEPLOY_URL" >> "$GITHUB_ENV"
+            echo "DEPLOY_TOKEN=$PROD_DEPLOY_TOKEN" >> "$GITHUB_ENV"
+            WEB_DIR="$PROD_WEB_DIR"; TOKEN="$PROD_DEPLOY_TOKEN"
+          else
+            ENVNAME="dev"
+            echo "WEB_DIR=$DEV_WEB_DIR" >> "$GITHUB_ENV"
+            echo "DEPLOY_URL=$DEV_DEPLOY_URL" >> "$GITHUB_ENV"
+            echo "DEPLOY_TOKEN=$DEV_DEPLOY_TOKEN" >> "$GITHUB_ENV"
+            WEB_DIR="$DEV_WEB_DIR"; TOKEN="$DEV_DEPLOY_TOKEN"
+          fi
+          echo "DEPLOY_ENV=$ENVNAME" >> "$GITHUB_ENV"
+          echo "Deploy target: $ENVNAME (nhánh ${{ github.ref_name }})"
+          if [ -z "$WEB_DIR" ] || [ -z "$TOKEN" ]; then
+            echo "::warning::Môi trường '$ENVNAME' chưa đủ secret (WEB_DIR/TOKEN) — bỏ qua bước deploy. Thêm secret rồi push lại."
+            echo "SKIP_DEPLOY=true" >> "$GITHUB_ENV"
+          fi
+
       - name: Checkout code
+        if: env.SKIP_DEPLOY != 'true'
         uses: actions/checkout@v4
 
       - name: Setup PHP 8.3
+        if: env.SKIP_DEPLOY != 'true'
         uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
           extensions: mbstring, pdo, pdo_mysql, bcmath, gd, zip, intl
 
       - name: Install composer dependencies (production)
+        if: env.SKIP_DEPLOY != 'true'
         working-directory: backend
         run: composer install --no-dev --optimize-autoloader --no-interaction --prefer-dist
 
       - name: Build deploy zip
+        if: env.SKIP_DEPLOY != 'true'
         working-directory: backend
         run: |
           zip -r -q -X ../deploy.zip . \
@@ -76,14 +119,7 @@ jobs:
             -x "database/database.sqlite"
 
       - name: Upload single zip via FTP
-        env:
-          FTP_SERVER: ${{ secrets.FTP_SERVER }}
-          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          # Đường dẫn TƯƠNG ĐỐI so với thư mục FTP đăng nhập (thường là home).
-          # Với tài khoản cPanel chính, home = /home/<user>, nên web root là
-          # 'public_html'. KHÔNG dùng đường dẫn tuyệt đối /home/... (bị lồng 2 lần).
-          FTP_WEB_DIR: ${{ secrets.FTP_WEB_DIR || 'public_html' }}
+        if: env.SKIP_DEPLOY != 'true'
         run: |
           sudo apt-get update -qq && sudo apt-get install -y lftp
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" -e "
@@ -94,13 +130,14 @@ jobs:
             set net:reconnect-interval-base 8;
             set net:reconnect-interval-multiplier 1.5;
             set net:timeout 45;
-            echo '=== upload ==='; put deploy.zip -o ${FTP_WEB_DIR}/deploy.zip;
-            echo '=== verify ==='; cls -l ${FTP_WEB_DIR}/deploy.zip;
+            echo '=== upload ($DEPLOY_ENV) ==='; put deploy.zip -o ${WEB_DIR}/deploy.zip;
+            echo '=== verify ==='; cls -l ${WEB_DIR}/deploy.zip;
             bye"
 
       - name: Extract + migrate + seed on server
+        if: env.SKIP_DEPLOY != 'true'
         run: |
-          echo "Gọi deploy hook (giải nén + migrate + seed)..."
-          curl -fsS --max-time 300 "https://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}" \
-            || curl -fsS --max-time 300 "http://carbonx.io.vn/__deploy?token=${{ secrets.DEPLOY_TOKEN }}"
+          echo "Gọi deploy hook ($DEPLOY_ENV): giải nén + migrate + seed..."
+          curl -fsS --max-time 300 "${DEPLOY_URL}/__deploy?token=${DEPLOY_TOKEN}" \
+            || curl -fsS --max-time 300 "${DEPLOY_URL/https:/http:}/__deploy?token=${DEPLOY_TOKEN}"
           echo ""
