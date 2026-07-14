@@ -23,22 +23,42 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Chỉ nạp provider nào đã cấu hình API key — tránh khởi tạo với key null
+        // (vỡ trên CI / khi thiếu key) và cho phép chạy với bất kỳ tập provider nào.
         $this->app->bind(VisionExtractor::class, function () {
-            return new VisionExtractorChain([
-                new GeminiVisionExtractor,
-                new GroqVisionExtractor,
-                new MistralVisionExtractor,
-                new OpenRouterVisionExtractor,
-            ]);
+            $extractors = [];
+            if (! empty(config('services.gemini.api_keys'))) {
+                $extractors[] = new GeminiVisionExtractor;
+            }
+            if (config('services.groq.api_key')) {
+                $extractors[] = new GroqVisionExtractor;
+            }
+            if (config('services.mistral.api_key')) {
+                $extractors[] = new MistralVisionExtractor;
+            }
+            if (config('services.openrouter.api_key')) {
+                $extractors[] = new OpenRouterVisionExtractor;
+            }
+
+            return new VisionExtractorChain($extractors);
         });
 
         $this->app->bind(AnswerSheetExtractor::class, function () {
-            return new AnswerSheetExtractorChain([
-                new GeminiAnswerSheetExtractor,
-                new GroqAnswerSheetExtractor,
-                new MistralAnswerSheetExtractor,
-                new OpenRouterAnswerSheetExtractor,
-            ]);
+            $extractors = [];
+            if (! empty(config('services.gemini.api_keys'))) {
+                $extractors[] = new GeminiAnswerSheetExtractor;
+            }
+            if (config('services.groq.api_key')) {
+                $extractors[] = new GroqAnswerSheetExtractor;
+            }
+            if (config('services.mistral.api_key')) {
+                $extractors[] = new MistralAnswerSheetExtractor;
+            }
+            if (config('services.openrouter.api_key')) {
+                $extractors[] = new OpenRouterAnswerSheetExtractor;
+            }
+
+            return new AnswerSheetExtractorChain($extractors);
         });
     }
 
