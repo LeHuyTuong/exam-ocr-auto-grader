@@ -88,10 +88,12 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y lftp
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" "$FTP_SERVER" -e "
             set ftp:ssl-allow no;
-            set net:max-retries 3;
-            set net:timeout 30;
-            echo '=== FTP landing dir ==='; pwd;
-            echo '=== ls landing dir ==='; cls -l;
+            set ftp:passive-mode on;
+            set net:max-retries 8;
+            set net:persist-retries 8;
+            set net:reconnect-interval-base 8;
+            set net:reconnect-interval-multiplier 1.5;
+            set net:timeout 45;
             echo '=== upload ==='; put deploy.zip -o ${FTP_WEB_DIR}/deploy.zip;
             echo '=== verify ==='; cls -l ${FTP_WEB_DIR}/deploy.zip;
             bye"
