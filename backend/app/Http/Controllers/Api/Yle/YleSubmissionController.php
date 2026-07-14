@@ -81,10 +81,21 @@ class YleSubmissionController extends Controller
 
         $pageNumber = $request->integer('page_number');
 
-        $imageUrl = $this->cloudinary->upload(
-            file_get_contents($request->file('image')->getRealPath()),
-            "yle/{$submission->yle_exam_id}/{$id}"
-        );
+        // Lưu ảnh lên Cloudinary — nếu chưa cấu hình / lỗi mạng thì vẫn cho chấm tiếp,
+        // chỉ mất ảnh minh hoạ (giống OcrController), không để 500.
+        $imageUrl = null;
+        try {
+            $imageUrl = $this->cloudinary->upload(
+                file_get_contents($request->file('image')->getRealPath()),
+                "yle/{$submission->yle_exam_id}/{$id}"
+            );
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('YLE cloudinary upload failed', [
+                'submission_id' => $id,
+                'page_number' => $pageNumber,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         $page = YleSubmissionPage::create([
             'yle_submission_id' => $id,
@@ -92,7 +103,17 @@ class YleSubmissionController extends Controller
             'image_url' => $imageUrl,
         ]);
 
-        $result = $this->processPage($submission, $page, $request);
+        // Xử lý AI/chấm điểm — nếu lỗi vẫn trả về trang đã lưu để không chặn quy trình.
+        try {
+            $result = $this->processPage($submission, $page, $request);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('YLE processPage failed', [
+                'submission_id' => $id,
+                'page_number' => $pageNumber,
+                'error' => $e->getMessage(),
+            ]);
+            $result = ['answers' => [], 'candidates' => []];
+        }
 
         return response()->json([
             'page' => [

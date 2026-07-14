@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/yle_models.dart';
 import '../../services/yle_service.dart';
+import '../../utils/error_utils.dart';
 
 class YleAnswerKeyScreen extends StatefulWidget {
   const YleAnswerKeyScreen({super.key});
@@ -47,7 +48,7 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }
@@ -67,10 +68,9 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedLevel,
                     decoration: const InputDecoration(labelText: 'Level'),
+                    // Hiện chỉ có mẫu đề Starters — Movers/Flyers chưa xây.
                     items: const [
                       DropdownMenuItem(value: 'starters', child: Text('Starters')),
-                      DropdownMenuItem(value: 'movers', child: Text('Movers')),
-                      DropdownMenuItem(value: 'flyers', child: Text('Flyers')),
                     ],
                     onChanged: (v) {
                       _selectedLevel = v;

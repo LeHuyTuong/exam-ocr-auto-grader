@@ -6,6 +6,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../models/yle_models.dart';
 import '../../services/mlkit_service.dart';
 import '../../services/yle_service.dart';
+import '../../utils/error_utils.dart';
 import '../../widgets/scan_overlay.dart';
 import 'yle_student_confirm_screen.dart';
 import 'yle_manual_grade_screen.dart';
@@ -297,7 +298,7 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
       if (mounted) {
         _resetAfterCapture();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

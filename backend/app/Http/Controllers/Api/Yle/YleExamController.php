@@ -58,7 +58,7 @@ class YleExamController extends Controller
         if (! $template) {
             return response()->json([
                 'error' => 'TEMPLATE_NOT_FOUND',
-                'message' => 'No template found for this level and skill combination.',
+                'message' => 'Hiện chỉ hỗ trợ cấp độ Starters (Listening & Reading/Writing). Movers/Flyers chưa có mẫu đề.',
             ], 422);
         }
 
