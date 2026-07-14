@@ -1,0 +1,36 @@
+name: CI (test)
+
+# Chạy test trên mọi Pull Request vào main/develop, và mọi push vào nhánh
+# KHÁC main (develop, feature/*). Push vào main do deploy.yml lo (đã test sẵn).
+on:
+  pull_request:
+    branches: [main, develop]
+  push:
+    branches-ignore: [main]
+
+jobs:
+  backend-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, pdo, sqlite3, pdo_sqlite, bcmath, gd, zip, intl
+
+      - name: Install composer dependencies
+        working-directory: backend
+        run: composer install --no-interaction --prefer-dist
+
+      - name: Prepare test environment
+        working-directory: backend
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+
+      - name: Run PHPUnit tests
+        working-directory: backend
+        run: php artisan test
