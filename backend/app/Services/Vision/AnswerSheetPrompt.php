@@ -78,7 +78,8 @@ How to record each answer, by part type:
 - "mcq_abc": the single letter A, B or C the student ticked or circled.
 - "fill_blank" / "word_from_box" / "one_word" / "word_order": the word(s) or number the student wrote, exactly as written.
 - "tick_cross": "tick" if the student marked ✓, "cross" if ✗.
-- "yes_no": "yes" or "no".{$nameInstr}
+- "yes_no": "yes" or "no".
+- "match_letter": the single letter (e.g. A-H) the student wrote, or that their drawn line points to.{$nameInstr}
 
 Confidence:
 - Per answer, set "confidence" (0-1) = how clearly you can read that student mark. If unsure or the writing is messy, use a low value.

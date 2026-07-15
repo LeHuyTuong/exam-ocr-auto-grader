@@ -98,6 +98,22 @@ class YleService {
     return YleSubmission.fromJson(data['submission'] as Map<String, dynamic>);
   }
 
+  /// Students in a class, for pickers that don't go through the scan flow
+  /// (e.g. Speaking, which has no page to OCR a name from).
+  Future<List<Map<String, dynamic>>> getClassStudents(int classId) async {
+    final res = await _api.get(
+      '/dashboard/class/$classId/students',
+      params: {'per_page': 100},
+    );
+    final data = res.data as Map<String, dynamic>;
+    return (data['students'] as List)
+        .map((s) => {
+              'id': s['id'] as int,
+              'fullName': s['full_name'] as String? ?? '',
+            })
+        .toList();
+  }
+
   Future<YlePageResult> getSubmissionResult(int submissionId) async {
     final res = await _api.get('/yle/submissions/$submissionId');
     final data = res.data as Map<String, dynamic>;

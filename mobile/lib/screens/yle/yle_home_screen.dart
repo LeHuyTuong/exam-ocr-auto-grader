@@ -9,6 +9,7 @@ import '../../widgets/error_view.dart';
 import '../../widgets/loading_view.dart';
 import 'yle_answer_key_screen.dart';
 import 'yle_scan_screen.dart';
+import 'yle_speaking_grade_screen.dart';
 
 class YleHomeScreen extends StatefulWidget {
   const YleHomeScreen({super.key});
@@ -146,6 +147,19 @@ class _YleHomeScreenState extends State<YleHomeScreen> {
     );
   }
 
+  String _skillLabel(String skill) {
+    switch (skill) {
+      case 'listening':
+        return 'Listening';
+      case 'reading_writing':
+        return 'Reading & Writing';
+      case 'speaking':
+        return 'Speaking';
+      default:
+        return skill;
+    }
+  }
+
   Future<void> _loadExams() async {
     setState(() {
       _loading = true;
@@ -238,7 +252,8 @@ class _YleHomeScreenState extends State<YleHomeScreen> {
                             ?.copyWith(fontWeight: FontWeight.w600)),
                     const SizedBox(height: 2),
                     Text(
-                      '${exam.level.toUpperCase()} — ${exam.skill == 'listening' ? 'Listening' : 'Reading & Writing'} | ${exam.totalMarks} điểm, ${exam.totalPages} trang',
+                      '${exam.level.toUpperCase()} — ${_skillLabel(exam.skill)} | ${exam.totalMarks} điểm'
+                      '${exam.totalPages > 0 ? ', ${exam.totalPages} trang' : ''}',
                       style: theme.textTheme.bodySmall?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant),
                     ),
@@ -278,14 +293,21 @@ class _YleHomeScreenState extends State<YleHomeScreen> {
         return AppCard(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           onTap: () {
+            final className = '${cls.code} - ${cls.name}';
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => YleScanScreen(
-                  exam: exam,
-                  classId: cls.id,
-                  className: '${cls.code} - ${cls.name}',
-                ),
+                builder: (_) => exam.skill == 'speaking'
+                    ? YleSpeakingGradeScreen(
+                        exam: exam,
+                        classId: cls.id,
+                        className: className,
+                      )
+                    : YleScanScreen(
+                        exam: exam,
+                        classId: cls.id,
+                        className: className,
+                      ),
               ),
             );
           },

@@ -68,9 +68,10 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedLevel,
                     decoration: const InputDecoration(labelText: 'Level'),
-                    // Hiện chỉ có mẫu đề Starters — Movers/Flyers chưa xây.
                     items: const [
                       DropdownMenuItem(value: 'starters', child: Text('Starters')),
+                      DropdownMenuItem(value: 'movers', child: Text('Movers')),
+                      DropdownMenuItem(value: 'flyers', child: Text('Flyers')),
                     ],
                     onChanged: (v) {
                       _selectedLevel = v;
@@ -86,6 +87,7 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
                     items: const [
                       DropdownMenuItem(value: 'listening', child: Text('Listening')),
                       DropdownMenuItem(value: 'reading_writing', child: Text('R&W')),
+                      DropdownMenuItem(value: 'speaking', child: Text('Speaking')),
                     ],
                     onChanged: (v) {
                       _selectedSkill = v;

@@ -109,6 +109,90 @@ class YleTest extends TestCase
         $response->assertStatus(422);
     }
 
+    public function test_create_movers_listening_exam(): void
+    {
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/yle/exams', [
+                'level' => 'movers',
+                'skill' => 'listening',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('exam.totalMarks', 25)
+            ->assertJsonPath('exam.totalPages', 5);
+
+        $this->assertCount(5, $response->json('exam.parts'));
+    }
+
+    public function test_create_flyers_reading_writing_exam(): void
+    {
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/yle/exams', [
+                'level' => 'flyers',
+                'skill' => 'reading_writing',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('exam.totalMarks', 44)
+            ->assertJsonPath('exam.totalPages', 7);
+
+        $this->assertCount(7, $response->json('exam.parts'));
+    }
+
+    public function test_create_speaking_exam(): void
+    {
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/yle/exams', [
+                'level' => 'starters',
+                'skill' => 'speaking',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('exam.totalMarks', 5)
+            ->assertJsonPath('exam.totalPages', 0);
+
+        $parts = $response->json('exam.parts');
+        $this->assertCount(1, $parts);
+        $this->assertFalse($parts[0]['isAutoGradable']);
+        $this->assertSame('speaking', $parts[0]['questionType']);
+    }
+
+    public function test_speaking_submission_completes_with_manual_score(): void
+    {
+        $examResponse = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/yle/exams', [
+                'level' => 'starters',
+                'skill' => 'speaking',
+            ]);
+        $examId = $examResponse->json('exam.id');
+        $partId = $examResponse->json('exam.parts.0.id');
+
+        $submissionResponse = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/yle/submissions', [
+                'yle_exam_id' => $examId,
+                'class_id' => $this->class->id,
+                'exam_date' => '2026-07-14',
+            ]);
+        $submissionId = $submissionResponse->json('submission.id');
+        $submissionResponse->assertJsonPath('submission.maxScore', 5);
+
+        $this->withHeaders($this->jwtAs($this->user))
+            ->putJson("/api/yle/submissions/{$submissionId}/student", [
+                'student_id' => $this->student->id,
+            ])->assertStatus(200);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson("/api/yle/submissions/{$submissionId}/manual", [
+                'marks' => [
+                    ['part_id' => $partId, 'marks' => 4],
+                ],
+            ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('submission.status', 'completed')
+            ->assertJsonPath('submission.totalScore', 4);
+    }
+
     public function test_update_question_answer_key(): void
     {
         $question = YleQuestion::whereHas('part', fn ($q) => $q->where('yle_exam_id', $this->exam->id))

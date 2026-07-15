@@ -35,6 +35,7 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
   CameraController? _cameraController;
   List<CameraDescription>? _cameras;
   bool _cameraReady = false;
+  CameraLensDirection _lensDirection = CameraLensDirection.back;
 
   ScanState _scanState = ScanState.idle;
   String? _lastFrameText;
@@ -120,7 +121,7 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
       _cameras = await availableCameras();
       if (_cameras == null || _cameras!.isEmpty) return;
       final camera = _cameras!.firstWhere(
-        (c) => c.lensDirection == CameraLensDirection.back,
+        (c) => c.lensDirection == _lensDirection,
         orElse: () => _cameras!.first,
       );
 
@@ -144,6 +145,18 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
         );
       }
     }
+  }
+
+  Future<void> _toggleCamera() async {
+    if (_cameras == null || _cameras!.length < 2) return;
+    _stopCamera();
+    setState(() {
+      _cameraReady = false;
+      _lensDirection = _lensDirection == CameraLensDirection.back
+          ? CameraLensDirection.front
+          : CameraLensDirection.back;
+    });
+    await _initCamera();
   }
 
   void _startImageStream() {
@@ -321,6 +334,14 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
         title: Text('${widget.exam.name} — Trang $_currentPage/${widget.exam.totalPages}'),
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
+        actions: [
+          if (_cameras != null && _cameras!.length > 1)
+            IconButton(
+              icon: const Icon(Icons.cameraswitch),
+              tooltip: 'Đổi camera trước/sau',
+              onPressed: _cameraReady ? _toggleCamera : null,
+            ),
+        ],
       ),
       body: _cameraReady && _cameraController != null
           ? Stack(
@@ -337,10 +358,11 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
                   child: Center(
                     child: _processing
                         ? const CircularProgressIndicator(color: Colors.white)
-                        : FloatingActionButton.large(
+                        : FloatingActionButton(
                             onPressed: _processing ? null : _captureAndProcess,
-                            backgroundColor: Colors.white,
-                            child: const Icon(Icons.camera_alt, color: Colors.black, size: 36),
+                            backgroundColor: Colors.white70,
+                            tooltip: 'Chụp thủ công (không bắt buộc — máy tự chụp khi giữ yên)',
+                            child: const Icon(Icons.camera_alt, color: Colors.black, size: 24),
                           ),
                   ),
                 ),

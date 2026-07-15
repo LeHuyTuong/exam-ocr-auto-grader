@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 enum ScanState { idle, detecting, stable, processing }
@@ -36,10 +37,16 @@ class ScanOverlay extends StatelessWidget {
   }
 
   Widget _buildScanFrame(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    final width = size.width * 0.75;
+    // A4 portrait ratio (210:297) so the guide matches a real exam page,
+    // clamped so it never overflows short screens.
+    final height = math.min(width * (297 / 210), size.height * 0.65);
+
     return Center(
       child: Container(
-        width: MediaQuery.of(context).size.width * 0.85,
-        height: MediaQuery.of(context).size.height * 0.4,
+        width: width,
+        height: height,
         decoration: BoxDecoration(
           border: Border.all(
             color: state == ScanState.stable
@@ -66,7 +73,7 @@ class ScanOverlay extends StatelessWidget {
 
     switch (state) {
       case ScanState.idle:
-        text = 'Đưa bài thi vào khung';
+        text = 'Giữ yên tờ giấy trong khung — máy tự chụp';
         icon = Icons.camera_alt_outlined;
         color = Colors.white70;
       case ScanState.detecting:

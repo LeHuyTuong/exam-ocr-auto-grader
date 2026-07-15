@@ -16,7 +16,7 @@ class YleExamController extends Controller
     {
         $request->validate([
             'level' => 'nullable|in:starters,movers,flyers',
-            'skill' => 'nullable|in:listening,reading_writing',
+            'skill' => 'nullable|in:listening,reading_writing,speaking',
         ]);
 
         $query = YleExam::with('parts.questions');
@@ -49,7 +49,7 @@ class YleExamController extends Controller
     {
         $request->validate([
             'level' => 'required|in:starters,movers,flyers',
-            'skill' => 'required|in:listening,reading_writing',
+            'skill' => 'required|in:listening,reading_writing,speaking',
             'name' => 'nullable|string|max:255',
         ]);
 
@@ -58,7 +58,7 @@ class YleExamController extends Controller
         if (! $template) {
             return response()->json([
                 'error' => 'TEMPLATE_NOT_FOUND',
-                'message' => 'Hiện chỉ hỗ trợ cấp độ Starters (Listening & Reading/Writing). Movers/Flyers chưa có mẫu đề.',
+                'message' => 'Không tìm thấy mẫu đề cho cấp độ/kỹ năng này.',
             ], 422);
         }
 
