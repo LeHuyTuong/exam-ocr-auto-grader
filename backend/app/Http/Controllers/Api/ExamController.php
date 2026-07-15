@@ -5,11 +5,16 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\SchoolClass;
+use App\Services\GradeExcelExporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExamController extends Controller
 {
+    public function __construct(private GradeExcelExporter $exporter) {}
+
     public function today(Request $request): JsonResponse
     {
         $request->validate(['class_id' => 'required|exists:school_classes,id']);
@@ -38,6 +43,7 @@ class ExamController extends Controller
                 'date' => $exam->date->format('Y-m-d'),
                 'totalQuestions' => $exam->total_questions,
                 'maxScore' => $exam->max_score,
+                'gradingMode' => $exam->grading_mode,
             ],
         ]);
     }
@@ -48,6 +54,7 @@ class ExamController extends Controller
             'class_id' => 'required|exists:school_classes,id',
             'total_questions' => 'required|integer|min:1|max:500',
             'max_score' => 'nullable|integer|min:1|max:100',
+            'grading_mode' => 'nullable|in:counting,graded',
         ]);
 
         $classId = $request->integer('class_id');
@@ -68,6 +75,7 @@ class ExamController extends Controller
                     'date' => $existing->date->format('Y-m-d'),
                     'totalQuestions' => $existing->total_questions,
                     'maxScore' => $existing->max_score,
+                    'gradingMode' => $existing->grading_mode,
                 ],
             ]);
         }
@@ -81,6 +89,7 @@ class ExamController extends Controller
             'date' => today(),
             'total_questions' => $request->integer('total_questions'),
             'max_score' => $maxScore,
+            'grading_mode' => $request->input('grading_mode', 'counting'),
             'created_by' => $request->user()->id,
         ]);
 
@@ -91,7 +100,31 @@ class ExamController extends Controller
                 'date' => $exam->date->format('Y-m-d'),
                 'totalQuestions' => $exam->total_questions,
                 'maxScore' => $exam->max_score,
+                'gradingMode' => $exam->grading_mode,
             ],
         ], 201);
+    }
+
+    public function export(Request $request, int $id): StreamedResponse
+    {
+        $exam = Exam::with('class')->findOrFail($id);
+
+        abort_unless(
+            $request->user()->isAdmin() || $request->user()->classes()->where('class_id', $exam->class_id)->exists(),
+            403,
+            'Bạn không có quyền xuất điểm lớp này.'
+        );
+
+        $spreadsheet = $this->exporter->export($exam);
+        // Tên exam có thể chứa ngày dạng "d/m/Y" (vd "Bài thi ... - 15/07/2026")
+        // nên phải bỏ ký tự "/" và "\" trước khi dùng làm tên file.
+        $safeName = str_replace(['/', '\\', ' '], ['-', '-', '_'], $exam->name);
+        $filename = 'Diem_'.$exam->class->code.'_'.$safeName.'_'.$exam->date->format('Y-m-d').'.xlsx';
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            (new Xlsx($spreadsheet))->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 }

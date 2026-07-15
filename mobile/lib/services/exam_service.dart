@@ -1,4 +1,5 @@
 import '../models/extract_result.dart';
+import '../models/graded_paper_result.dart';
 import 'api_client.dart';
 
 class ExamService {
@@ -20,11 +21,13 @@ class ExamService {
   }
 
   Future<Map<String, dynamic>> createTodayExam(
-      int classId, int totalQuestions, int? maxScore) async {
+      int classId, int totalQuestions, int? maxScore,
+      {String gradingMode = 'counting'}) async {
     final res = await _api.post('/exams/today', data: {
       'class_id': classId,
       'total_questions': totalQuestions,
       'max_score': maxScore ?? totalQuestions,
+      'grading_mode': gradingMode,
     });
     return res.data as Map<String, dynamic>;
   }
@@ -52,6 +55,8 @@ class ExamService {
     int? studentId,
     bool? createNewStudent,
     String? newStudentName,
+    String? imageUrl2,
+    Map<String, int>? subScores,
   }) async {
     final data = <String, dynamic>{
       'exam_id': examId,
@@ -69,8 +74,48 @@ class ExamService {
     if (newStudentName != null) {
       data['new_student_name'] = newStudentName;
     }
+    if (imageUrl2 != null) {
+      data['image_url_2'] = imageUrl2;
+    }
+    if (subScores != null) {
+      data['sub_scores'] = subScores;
+    }
     await _api.post('/grades', data: data);
   }
+
+  /// Task 1/2 of the graded-paper flow — a tight crop of the pencil-written
+  /// name line. Returns the exam id to reuse for the scores crop.
+  Future<GradedNameResult> extractGradedName(
+      String imagePath, int classId, String? mlkitHint) async {
+    final fields = <String, dynamic>{
+      'class_id': classId.toString(),
+      'mode': 'name',
+    };
+    if (mlkitHint != null) {
+      fields['mlkit_hint'] = mlkitHint;
+    }
+    final res =
+        await _api.uploadImage('/ocr/extract-graded', imagePath, fields: fields);
+    return GradedNameResult.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// Task 2/2 — a tight crop of the red-ink score strip at the end of the paper.
+  Future<GradedScoresResult> extractGradedScores(
+      String imagePath, int classId, String? mlkitHint) async {
+    final fields = <String, dynamic>{
+      'class_id': classId.toString(),
+      'mode': 'scores',
+    };
+    if (mlkitHint != null) {
+      fields['mlkit_hint'] = mlkitHint;
+    }
+    final res =
+        await _api.uploadImage('/ocr/extract-graded', imagePath, fields: fields);
+    return GradedScoresResult.fromJson(res.data as Map<String, dynamic>);
+  }
+
+  /// Raw .xlsx bytes for the class/exam grade sheet, ready to share or save.
+  Future<List<int>> downloadExcel(int examId) => _api.getBytes('/exams/$examId/export');
 
   Future<Map<String, dynamic>> getGrades(int examId,
       {int? classId, int? studentId, int page = 1, int perPage = 15}) async {

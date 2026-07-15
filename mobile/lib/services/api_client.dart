@@ -172,6 +172,16 @@ class ApiClient {
   Future<Response> get(String path, {Map<String, dynamic>? params}) =>
       _dio.get(path, queryParameters: params);
 
+  /// For binary downloads (e.g. exported .xlsx files) — bypasses Dio's
+  /// default JSON parsing so the raw bytes come back untouched.
+  Future<List<int>> getBytes(String path) async {
+    final response = await _dio.get<List<int>>(
+      path,
+      options: Options(responseType: ResponseType.bytes),
+    );
+    return response.data ?? [];
+  }
+
   Future<Response> put(String path, {dynamic data}) =>
       _dio.put(path, data: data);
 

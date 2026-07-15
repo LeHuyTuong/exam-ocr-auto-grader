@@ -5,6 +5,7 @@ import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
+import 'graded_scan_screen.dart';
 import 'scan_screen.dart';
 
 class ClassSelectScreen extends StatefulWidget {
@@ -58,34 +59,41 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
       final exam = await _service.getTodayExam(cls.id);
       int totalQuestions;
       int? maxScore;
+      String gradingMode;
 
       if (exam == null) {
         if (!mounted) return;
-        final result = await showDialog<Map<String, int>>(
+        final result = await showDialog<Map<String, dynamic>>(
           context: context,
           builder: (ctx) => _ExamDialog(classCode: cls.code),
         );
         if (result == null) return;
-        totalQuestions = result['totalQuestions'] ?? 50;
-        maxScore = result['maxScore'];
-        await _service.createTodayExam(cls.id, totalQuestions, maxScore);
+        totalQuestions = result['totalQuestions'] as int? ?? 50;
+        maxScore = result['maxScore'] as int?;
+        gradingMode = result['gradingMode'] as String? ?? 'counting';
+        await _service.createTodayExam(cls.id, totalQuestions, maxScore,
+            gradingMode: gradingMode);
       } else {
-        totalQuestions = (exam['exam'] as Map<String, dynamic>?)
-                ?.tryGet('totalQuestions') as int? ?? 50;
-        maxScore = (exam['exam'] as Map<String, dynamic>?)
-            ?.tryGet('maxScore') as int?;
+        final examData = exam['exam'] as Map<String, dynamic>?;
+        totalQuestions = examData?.tryGet('totalQuestions') as int? ?? 50;
+        maxScore = examData?.tryGet('maxScore') as int?;
+        gradingMode = examData?.tryGet('gradingMode') as String? ?? 'counting';
       }
 
       if (!mounted) return;
+
+      final className = '${cls.code} - ${cls.name}';
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => ScanScreen(
-            classId: cls.id,
-            className: '${cls.code} - ${cls.name}',
-            totalQuestions: totalQuestions,
-            maxScore: maxScore ?? totalQuestions,
-          ),
+          builder: (_) => gradingMode == 'graded'
+              ? GradedScanScreen(classId: cls.id, className: className)
+              : ScanScreen(
+                  classId: cls.id,
+                  className: className,
+                  totalQuestions: totalQuestions,
+                  maxScore: maxScore ?? totalQuestions,
+                ),
         ),
       );
     } catch (e) {
@@ -190,9 +198,12 @@ class _ExamDialog extends StatefulWidget {
   State<_ExamDialog> createState() => _ExamDialogState();
 }
 
+enum _GradingMode { counting, graded }
+
 class _ExamDialogState extends State<_ExamDialog> {
   final _questionsCtrl = TextEditingController(text: '50');
   final _maxScoreCtrl = TextEditingController(text: '10');
+  _GradingMode _mode = _GradingMode.counting;
 
   @override
   void dispose() {
@@ -209,27 +220,58 @@ class _ExamDialogState extends State<_ExamDialog> {
         'Bài thi ${widget.classCode}',
         style: theme.textTheme.titleMedium,
       ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: _questionsCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Tổng số câu hỏi',
-              hintText: '50',
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            RadioGroup<_GradingMode>(
+              groupValue: _mode,
+              onChanged: (v) => setState(() {
+                _mode = v ?? _GradingMode.counting;
+                if (_mode == _GradingMode.graded && _maxScoreCtrl.text == '10') {
+                  _maxScoreCtrl.text = '50';
+                }
+              }),
+              child: const Column(
+                children: [
+                  RadioListTile<_GradingMode>(
+                    value: _GradingMode.counting,
+                    title: Text('Đếm câu đúng'),
+                    subtitle: Text('Chụp 1 ảnh, AI đếm số câu đúng'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                  RadioListTile<_GradingMode>(
+                    value: _GradingMode.graded,
+                    title: Text('Unit Test đã chấm (2 ảnh)'),
+                    subtitle: Text('Chụp tên + dải điểm bút đỏ'),
+                    contentPadding: EdgeInsets.zero,
+                  ),
+                ],
+              ),
             ),
-            keyboardType: TextInputType.number,
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _maxScoreCtrl,
-            decoration: const InputDecoration(
-              labelText: 'Thang điểm',
-              hintText: 'Để trống = số câu hỏi',
+            const SizedBox(height: 8),
+            if (_mode == _GradingMode.counting) ...[
+              TextField(
+                controller: _questionsCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Tổng số câu hỏi',
+                  hintText: '50',
+                ),
+                keyboardType: TextInputType.number,
+              ),
+              const SizedBox(height: 12),
+            ],
+            TextField(
+              controller: _maxScoreCtrl,
+              decoration: InputDecoration(
+                labelText: 'Thang điểm',
+                hintText: _mode == _GradingMode.counting ? 'Để trống = số câu hỏi' : '50',
+              ),
+              keyboardType: TextInputType.number,
             ),
-            keyboardType: TextInputType.number,
-          ),
-        ],
+          ],
+        ),
       ),
       actions: [
         TextButton(
@@ -238,6 +280,18 @@ class _ExamDialogState extends State<_ExamDialog> {
         ),
         FilledButton(
           onPressed: () {
+            if (_mode == _GradingMode.graded) {
+              final maxScore = int.tryParse(_maxScoreCtrl.text) ?? 50;
+              Navigator.pop(context, {
+                // Cột total_questions không dùng ở luồng Unit Test nhưng là
+                // NOT NULL trong DB — dùng lại thang điểm làm giá trị placeholder.
+                'totalQuestions': maxScore,
+                'maxScore': maxScore,
+                'gradingMode': 'graded',
+              });
+              return;
+            }
+
             final q = int.tryParse(_questionsCtrl.text);
             if (q == null || q <= 0) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -248,6 +302,7 @@ class _ExamDialogState extends State<_ExamDialog> {
             Navigator.pop(context, {
               'totalQuestions': q,
               'maxScore': int.tryParse(_maxScoreCtrl.text),
+              'gradingMode': 'counting',
             });
           },
           child: const Text('Bắt đầu'),

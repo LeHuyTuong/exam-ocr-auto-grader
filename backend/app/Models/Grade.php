@@ -16,7 +16,9 @@ class Grade extends Model
         'class_id',
         'total_correct',
         'score',
+        'sub_scores',
         'image_url',
+        'image_url_2',
         'ai_confidence',
         'ocr_raw_name',
         'status',
@@ -27,6 +29,7 @@ class Grade extends Model
     {
         return [
             'score' => 'float',
+            'sub_scores' => 'array',
             'ai_confidence' => 'float',
         ];
     }

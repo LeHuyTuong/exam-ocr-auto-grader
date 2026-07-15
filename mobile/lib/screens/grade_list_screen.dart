@@ -1,5 +1,8 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import '../models/grade.dart';
 import '../models/school_class.dart';
 import '../services/exam_service.dart';
@@ -22,8 +25,10 @@ class _GradeListScreenState extends State<GradeListScreen> {
   List<Grade> _grades = [];
   bool _loadingGrades = false;
   bool _loadingMore = false;
+  bool _exporting = false;
   int _currentPage = 1;
   int _lastPage = 1;
+  int? _examId;
 
   @override
   void initState() {
@@ -68,6 +73,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
       _loadingGrades = true;
       _currentPage = 1;
       _grades = [];
+      _examId = null;
     });
 
     try {
@@ -82,10 +88,36 @@ class _GradeListScreenState extends State<GradeListScreen> {
         _grades = rawGrades.map((g) => Grade.fromJson(g)).toList();
         _currentPage = meta?['current_page'] as int? ?? 1;
         _lastPage = meta?['last_page'] as int? ?? 1;
+        _examId = examId;
       }
     } catch (_) {}
 
     if (mounted) setState(() => _loadingGrades = false);
+  }
+
+  Future<void> _exportExcel() async {
+    if (_examId == null || _exporting) return;
+    setState(() => _exporting = true);
+
+    try {
+      final bytes = await _service.downloadExcel(_examId!);
+      final dir = await getTemporaryDirectory();
+      final file = File('${dir.path}/Diem_${_selectedClass?.code}_$_examId.xlsx');
+      await file.writeAsBytes(bytes);
+
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile(file.path)],
+        text: 'Bảng điểm ${_selectedClass?.code} - ${_selectedClass?.name}',
+      ));
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi xuất Excel: $e')),
+        );
+      }
+    }
+
+    if (mounted) setState(() => _exporting = false);
   }
 
   Future<void> _loadMoreGrades() async {
@@ -129,6 +161,20 @@ class _GradeListScreenState extends State<GradeListScreen> {
       appBar: AppBar(
         title: const Text('Danh sách điểm'),
         centerTitle: true,
+        actions: [
+          if (_examId != null)
+            IconButton(
+              icon: _exporting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.ios_share),
+              tooltip: 'Xuất Excel',
+              onPressed: _exporting ? null : _exportExcel,
+            ),
+        ],
       ),
       body: Column(
         children: [

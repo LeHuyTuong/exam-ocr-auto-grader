@@ -27,8 +27,12 @@ Route::middleware('auth:api')->group(function () {
         ->middleware('permission:exam.view');
     Route::post('/exams/today', [ExamController::class, 'storeToday'])
         ->middleware('permission:exam.create');
+    Route::get('/exams/{id}/export', [ExamController::class, 'export'])
+        ->middleware('permission:grade.view');
 
     Route::post('/ocr/extract', [OcrController::class, 'extract'])
+        ->middleware('permission:ocr.use');
+    Route::post('/ocr/extract-graded', [OcrController::class, 'extractGraded'])
         ->middleware('permission:ocr.use');
 
     Route::get('/grades', [GradeController::class, 'index'])

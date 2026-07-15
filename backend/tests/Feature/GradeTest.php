@@ -66,6 +66,46 @@ class GradeTest extends TestCase
         ]);
     }
 
+    public function test_store_grade_with_sub_scores(): void
+    {
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/grades', [
+                'exam_id' => $this->exam->id,
+                'class_id' => $this->class->id,
+                'student_id' => $this->student->id,
+                'total_correct' => 43,
+                'score' => 43,
+                'ocr_raw_name' => 'Nguyen Van A',
+                'image_url' => 'https://res.cloudinary.com/test/name.jpg',
+                'image_url_2' => 'https://res.cloudinary.com/test/scores.jpg',
+                'ai_confidence' => 0.9,
+                'sub_scores' => [
+                    'vocabulary' => 10,
+                    'grammar' => 8,
+                    'listening' => 10,
+                    'reading' => 5,
+                    'writing' => 3,
+                    'speaking' => 7,
+                ],
+            ]);
+
+        $response->assertStatus(201);
+
+        $grade = Grade::where('exam_id', $this->exam->id)
+            ->where('student_id', $this->student->id)
+            ->first();
+
+        $this->assertSame('https://res.cloudinary.com/test/scores.jpg', $grade->image_url_2);
+        $this->assertSame([
+            'vocabulary' => 10,
+            'grammar' => 8,
+            'listening' => 10,
+            'reading' => 5,
+            'writing' => 3,
+            'speaking' => 7,
+        ], $grade->sub_scores);
+    }
+
     public function test_store_grade_creates_new_student(): void
     {
         $response = $this->withHeaders($this->jwtAs($this->user))

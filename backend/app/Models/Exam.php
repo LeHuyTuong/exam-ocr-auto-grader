@@ -17,6 +17,7 @@ class Exam extends Model
         'date',
         'total_questions',
         'max_score',
+        'grading_mode',
         'created_by',
     ];
 

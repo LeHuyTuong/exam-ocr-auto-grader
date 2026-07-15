@@ -5,12 +5,18 @@ namespace App\Providers;
 use App\Services\Vision\AnswerSheetExtractor;
 use App\Services\Vision\AnswerSheetExtractorChain;
 use App\Services\Vision\GeminiAnswerSheetExtractor;
+use App\Services\Vision\GeminiGradedPaperExtractor;
 use App\Services\Vision\GeminiVisionExtractor;
+use App\Services\Vision\GradedPaperExtractor;
+use App\Services\Vision\GradedPaperExtractorChain;
 use App\Services\Vision\GroqAnswerSheetExtractor;
+use App\Services\Vision\GroqGradedPaperExtractor;
 use App\Services\Vision\GroqVisionExtractor;
 use App\Services\Vision\MistralAnswerSheetExtractor;
+use App\Services\Vision\MistralGradedPaperExtractor;
 use App\Services\Vision\MistralVisionExtractor;
 use App\Services\Vision\OpenRouterAnswerSheetExtractor;
+use App\Services\Vision\OpenRouterGradedPaperExtractor;
 use App\Services\Vision\OpenRouterVisionExtractor;
 use App\Services\Vision\VisionExtractor;
 use App\Services\Vision\VisionExtractorChain;
@@ -60,12 +66,28 @@ class AppServiceProvider extends ServiceProvider
 
             return new AnswerSheetExtractorChain($extractors);
         });
+
+        $this->app->bind(GradedPaperExtractor::class, function () {
+            $extractors = [];
+            if (! empty(config('services.gemini.api_keys'))) {
+                $extractors[] = new GeminiGradedPaperExtractor;
+            }
+            if (config('services.groq.api_key')) {
+                $extractors[] = new GroqGradedPaperExtractor;
+            }
+            if (config('services.mistral.api_key')) {
+                $extractors[] = new MistralGradedPaperExtractor;
+            }
+            if (config('services.openrouter.api_key')) {
+                $extractors[] = new OpenRouterGradedPaperExtractor;
+            }
+
+            return new GradedPaperExtractorChain($extractors);
+        });
     }
 
     /**
      * Bootstrap any application services.
      */
-    public function boot(): void
-    {
-    }
+    public function boot(): void {}
 }
