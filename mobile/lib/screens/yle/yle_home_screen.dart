@@ -127,11 +127,11 @@ class _YleHomeScreenState extends State<YleHomeScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Quét bài chấm',
+                      Text('Chấm bài học sinh',
                           style: theme.textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold)),
                       const SizedBox(height: 4),
-                      Text('Chụp và chấm bài thi Cambridge YLE',
+                      Text('Chọn đề & lớp, rồi quét bài từng trang',
                           style: theme.textTheme.bodySmall?.copyWith(
                               color: theme.colorScheme.onSurfaceVariant)),
                     ],

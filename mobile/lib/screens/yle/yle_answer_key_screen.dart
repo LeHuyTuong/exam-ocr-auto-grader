@@ -57,7 +57,7 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Answer Key Editor')),
+      appBar: AppBar(title: const Text('Đáp án đề Cambridge YLE')),
       body: Column(
         children: [
           Padding(
@@ -67,7 +67,7 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedLevel,
-                    decoration: const InputDecoration(labelText: 'Level'),
+                    decoration: const InputDecoration(labelText: 'Cấp độ'),
                     items: const [
                       DropdownMenuItem(value: 'starters', child: Text('Starters')),
                       DropdownMenuItem(value: 'movers', child: Text('Movers')),
@@ -83,11 +83,11 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
                 Expanded(
                   child: DropdownButtonFormField<String>(
                     initialValue: _selectedSkill,
-                    decoration: const InputDecoration(labelText: 'Skill'),
+                    decoration: const InputDecoration(labelText: 'Kỹ năng'),
                     items: const [
-                      DropdownMenuItem(value: 'listening', child: Text('Listening')),
-                      DropdownMenuItem(value: 'reading_writing', child: Text('R&W')),
-                      DropdownMenuItem(value: 'speaking', child: Text('Speaking')),
+                      DropdownMenuItem(value: 'listening', child: Text('Nghe')),
+                      DropdownMenuItem(value: 'reading_writing', child: Text('Đọc & Viết')),
+                      DropdownMenuItem(value: 'speaking', child: Text('Nói')),
                     ],
                     onChanged: (v) {
                       _selectedSkill = v;
@@ -103,7 +103,7 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
             child: ElevatedButton.icon(
               onPressed: _createExam,
               icon: const Icon(Icons.add),
-              label: const Text('Tạo paper mới (auto-scaffold)'),
+              label: const Text('Tạo đề mới tự động'),
             ),
           ),
           const SizedBox(height: 16),
@@ -111,7 +111,7 @@ class _YleAnswerKeyScreenState extends State<YleAnswerKeyScreen> {
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
                 : _exams.isEmpty
-                    ? const Center(child: Text('Chưa có exam nào'))
+                    ? const Center(child: Text('Chưa có đề nào'))
                     : ListView.builder(
                         itemCount: _exams.length,
                         itemBuilder: (ctx, i) => _ExamCard(
@@ -166,14 +166,30 @@ class _ExamCardState extends State<_ExamCard> {
     }
   }
 
+  String _skillLabel(String skill) {
+    switch (skill) {
+      case 'listening':
+        return 'Nghe';
+      case 'reading_writing':
+        return 'Đọc & Viết';
+      case 'speaking':
+        return 'Nói';
+      default:
+        return skill;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final exam = widget.exam;
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: ExpansionTile(
-        title: Text('${exam.name} (${exam.level}/${exam.skill})'),
-        subtitle: Text('${exam.totalMarks} marks, ${exam.totalPages} pages'),
+        title: Text(exam.name),
+        subtitle: Text(
+          '${exam.level[0].toUpperCase()}${exam.level.substring(1)} · '
+          '${_skillLabel(exam.skill)} — ${exam.totalMarks} điểm, ${exam.totalPages} trang',
+        ),
         initiallyExpanded: _expanded,
         onExpansionChanged: (v) => setState(() => _expanded = v),
         children: exam.parts.map((part) {
@@ -183,7 +199,7 @@ class _ExamCardState extends State<_ExamCard> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Part ${part.partNumber}: ${part.title}',
+                  'Phần ${part.partNumber}: ${part.title}',
                   style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 if (part.isAutoGradable)
@@ -194,7 +210,7 @@ class _ExamCardState extends State<_ExamCard> {
                 else
                   const Padding(
                     padding: EdgeInsets.all(8),
-                    child: Text('(Manual grading - no answer key needed)',
+                    child: Text('(Chấm tay — không cần đáp án)',
                         style: TextStyle(color: Colors.grey, fontStyle: FontStyle.italic)),
                   ),
               ],
@@ -251,7 +267,7 @@ class _AnswerInputState extends State<_AnswerInput> {
             child: TextField(
               controller: _answerCtrl,
               decoration: const InputDecoration(
-                hintText: 'Correct answer',
+                hintText: 'Đáp án đúng',
                 isDense: true,
               ),
             ),
@@ -261,7 +277,7 @@ class _AnswerInputState extends State<_AnswerInput> {
             child: TextField(
               controller: _variantsCtrl,
               decoration: const InputDecoration(
-                hintText: 'Variants (comma-separated)',
+                hintText: 'Biến thể (cách nhau bằng dấu phẩy)',
                 isDense: true,
               ),
             ),

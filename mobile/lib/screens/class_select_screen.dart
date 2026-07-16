@@ -217,7 +217,7 @@ class _ExamDialogState extends State<_ExamDialog> {
     final theme = Theme.of(context);
     return AlertDialog(
       title: Text(
-        'Bài thi ${widget.classCode}',
+        'Chọn kiểu chấm — ${widget.classCode}',
         style: theme.textTheme.titleMedium,
       ),
       content: SingleChildScrollView(

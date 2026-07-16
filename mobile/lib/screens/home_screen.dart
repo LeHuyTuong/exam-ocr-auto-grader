@@ -70,13 +70,13 @@ class HomeScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Quét bài thi',
+                          'Chấm bài kiểm tra',
                           style: theme.textTheme.titleMedium
                               ?.copyWith(fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Chụp và chấm bài thi nhanh chóng',
+                          'Trắc nghiệm đếm câu, hoặc Unit Test đã chấm tay',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -217,7 +217,7 @@ class HomeScreen extends StatelessWidget {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Quét và chấm bài thi Cambridge Starters/Movers/Flyers',
+                          'Đề chuẩn Starters / Movers / Flyers — quét nhiều trang',
                           style: theme.textTheme.bodySmall?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
