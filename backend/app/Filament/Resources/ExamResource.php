@@ -33,6 +33,13 @@ class ExamResource extends Resource
                 Forms\Components\TextInput::make('max_score')
                     ->required()
                     ->numeric(),
+                Forms\Components\Select::make('grading_mode')
+                    ->options([
+                        'counting' => 'Đếm câu đúng',
+                        'graded' => 'Unit Test đã chấm tay',
+                    ])
+                    ->default('counting')
+                    ->required(),
                 Forms\Components\TextInput::make('created_by')
                     ->required()
                     ->numeric(),
@@ -56,6 +63,12 @@ class ExamResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('max_score')
                     ->numeric()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('grading_mode')
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'graded' => 'Unit Test đã chấm tay',
+                        default => 'Đếm câu đúng',
+                    })
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_by')
                     ->numeric()
