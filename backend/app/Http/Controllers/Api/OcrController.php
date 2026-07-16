@@ -68,10 +68,9 @@ class OcrController extends Controller
             $imageUrl = null;
         }
 
-        $score = round(
-            ($result->totalCorrect / $exam->total_questions) * $exam->max_score,
-            2
-        );
+        $score = $exam->total_questions > 0
+            ? round(($result->totalCorrect / $exam->total_questions) * $exam->max_score, 2)
+            : 0.0;
 
         $candidates = $this->fuzzyMatch->findCandidates($result->studentName, $classId);
 

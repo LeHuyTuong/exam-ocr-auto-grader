@@ -29,10 +29,12 @@ class ExamResource extends Resource
                     ->required(),
                 Forms\Components\TextInput::make('total_questions')
                     ->required()
-                    ->numeric(),
+                    ->numeric()
+                    ->minValue(1),
                 Forms\Components\TextInput::make('max_score')
                     ->required()
-                    ->numeric(),
+                    ->numeric()
+                    ->minValue(1),
                 Forms\Components\Select::make('grading_mode')
                     ->options([
                         'counting' => 'Đếm câu đúng',

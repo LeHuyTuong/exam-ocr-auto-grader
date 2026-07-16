@@ -6,6 +6,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../services/exam_service.dart';
 import '../services/mlkit_service.dart';
+import '../utils/error_utils.dart';
 import '../widgets/scan_overlay.dart';
 import '../widgets/quick_confirm_sheet.dart';
 import 'confirm_screen.dart';
@@ -227,7 +228,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
       if (mounted) {
         _resetAfterCapture();
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi xử lý ảnh: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }
