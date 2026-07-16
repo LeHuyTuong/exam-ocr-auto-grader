@@ -28,7 +28,6 @@ class DashboardTest extends TestCase
         $this->user->classes()->attach($this->class->id);
         $this->exam = Exam::factory()->create([
             'class_id' => $this->class->id,
-            'date' => today(),
         ]);
         $this->student = Student::factory()->create(['class_id' => $this->class->id]);
         Grade::factory()->count(3)->create([

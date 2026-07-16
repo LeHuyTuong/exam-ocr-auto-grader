@@ -14,19 +14,11 @@ class Exam extends Model
     protected $fillable = [
         'class_id',
         'name',
-        'date',
         'total_questions',
         'max_score',
         'grading_mode',
         'created_by',
     ];
-
-    protected function casts(): array
-    {
-        return [
-            'date' => 'date',
-        ];
-    }
 
     public function class(): BelongsTo
     {

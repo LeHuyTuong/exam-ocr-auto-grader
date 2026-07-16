@@ -10,7 +10,10 @@ class ExamService {
     return res.data as Map<String, dynamic>;
   }
 
-  Future<Map<String, dynamic>?> getTodayExam(int classId) async {
+  /// Mỗi lớp chỉ có đúng 1 exam (config chấm bài), không còn phân biệt theo
+  /// ngày — endpoint backend vẫn tên "/exams/today" nhưng nay trả về exam
+  /// duy nhất của lớp, dùng chung cho mọi lần chấm.
+  Future<Map<String, dynamic>?> getClassExam(int classId) async {
     try {
       final res =
           await _api.get('/exams/today', params: {'class_id': classId});
@@ -20,7 +23,7 @@ class ExamService {
     }
   }
 
-  Future<Map<String, dynamic>> createTodayExam(
+  Future<Map<String, dynamic>> createClassExam(
       int classId, int totalQuestions, int? maxScore,
       {String gradingMode = 'counting'}) async {
     final res = await _api.post('/exams/today', data: {

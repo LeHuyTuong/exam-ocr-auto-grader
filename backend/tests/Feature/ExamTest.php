@@ -38,14 +38,14 @@ class ExamTest extends TestCase
 
     public function test_get_today_exam_returns_existing_exam(): void
     {
-        $exam = Exam::factory()->create(['date' => today()]);
+        $exam = Exam::factory()->create();
         $this->user->classes()->attach($exam->class_id);
 
         $response = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/exams/today?class_id='.$exam->class_id);
 
         $response->assertStatus(200)
-            ->assertJsonStructure(['exam' => ['id', 'name', 'date', 'totalQuestions', 'maxScore']]);
+            ->assertJsonStructure(['exam' => ['id', 'name', 'totalQuestions', 'maxScore']]);
     }
 
     public function test_create_today_exam_successfully(): void
@@ -72,7 +72,7 @@ class ExamTest extends TestCase
 
     public function test_create_today_exam_returns_existing_if_already_exists(): void
     {
-        $exam = Exam::factory()->create(['date' => today()]);
+        $exam = Exam::factory()->create();
         $this->user->classes()->attach($exam->class_id);
 
         $response = $this->withHeaders($this->jwtAs($this->user))
@@ -107,8 +107,8 @@ class ExamTest extends TestCase
             'grading_mode' => 'graded',
         ]);
 
-        // Re-fetching later the same day must surface the same mode so the
-        // app knows which scan screen to route to without asking again.
+        // Re-fetching later must surface the same mode so the app knows
+        // which scan screen to route to without asking again.
         $today = $this->withHeaders($this->jwtAs($this->user))
             ->getJson('/api/exams/today?class_id='.$class->id);
 
@@ -147,7 +147,7 @@ class ExamTest extends TestCase
 
     public function test_export_grades_to_excel(): void
     {
-        $exam = Exam::factory()->create(['date' => today(), 'max_score' => 50]);
+        $exam = Exam::factory()->create(['max_score' => 50]);
         $this->user->classes()->attach($exam->class_id);
 
         $studentA = Student::factory()->create(['class_id' => $exam->class_id, 'full_name' => 'Nguyen Van A']);
@@ -202,7 +202,7 @@ class ExamTest extends TestCase
 
     public function test_export_forbidden_for_other_class(): void
     {
-        $exam = Exam::factory()->create(['date' => today()]);
+        $exam = Exam::factory()->create();
 
         $response = $this->withHeaders($this->jwtAs($this->user))
             ->get('/api/exams/'.$exam->id.'/export');

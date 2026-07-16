@@ -35,14 +35,12 @@ class OcrController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $exam = Exam::where('class_id', $classId)
-            ->where('date', today())
-            ->first();
+        $exam = Exam::where('class_id', $classId)->first();
 
         if (! $exam) {
             return response()->json([
                 'error' => 'NOT_FOUND',
-                'message' => 'Chưa có bài thi hôm nay cho lớp này. Hãy tạo exam trước.',
+                'message' => 'Chưa có bài thi cho lớp này. Hãy tạo exam trước.',
             ], 404);
         }
 
@@ -106,14 +104,12 @@ class OcrController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $exam = Exam::where('class_id', $classId)
-            ->where('date', today())
-            ->first();
+        $exam = Exam::where('class_id', $classId)->first();
 
         if (! $exam) {
             return response()->json([
                 'error' => 'NOT_FOUND',
-                'message' => 'Chưa có bài thi hôm nay cho lớp này. Hãy tạo exam trước.',
+                'message' => 'Chưa có bài thi cho lớp này. Hãy tạo exam trước.',
             ], 404);
         }
 

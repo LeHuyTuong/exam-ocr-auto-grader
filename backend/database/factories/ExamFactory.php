@@ -12,8 +12,7 @@ class ExamFactory extends Factory
     {
         return [
             'class_id' => SchoolClass::factory(),
-            'name' => 'Bài thi '.fake()->date('d/m/Y'),
-            'date' => today(),
+            'name' => 'Bài thi '.fake()->word(),
             'total_questions' => fake()->randomElement([20, 30, 40, 50]),
             'max_score' => 10,
             'created_by' => User::factory(),

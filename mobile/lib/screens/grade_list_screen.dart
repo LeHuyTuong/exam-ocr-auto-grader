@@ -77,7 +77,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
     });
 
     try {
-      final exam = await _service.getTodayExam(_selectedClass!.id);
+      final exam = await _service.getClassExam(_selectedClass!.id);
       if (exam != null) {
         final examId =
             (exam['exam'] as Map<String, dynamic>?)?['id'] as int? ?? 0;
@@ -125,7 +125,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
     setState(() => _loadingMore = true);
 
     try {
-      final exam = await _service.getTodayExam(_selectedClass!.id);
+      final exam = await _service.getClassExam(_selectedClass!.id);
       if (exam != null) {
         final examId =
             (exam['exam'] as Map<String, dynamic>?)?['id'] as int? ?? 0;
@@ -209,7 +209,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
                     : _grades.isEmpty
                         ? const EmptyState(
                             icon: Icons.inbox_outlined,
-                            message: 'Chưa có điểm nào hôm nay',
+                            message: 'Chưa có điểm nào',
                           )
                         : RefreshIndicator(
                             onRefresh: _loadGrades,

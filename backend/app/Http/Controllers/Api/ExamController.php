@@ -25,14 +25,12 @@ class ExamController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $exam = Exam::where('class_id', $classId)
-            ->where('date', today())
-            ->first();
+        $exam = Exam::where('class_id', $classId)->first();
 
         if (! $exam) {
             return response()->json([
                 'error' => 'NOT_FOUND',
-                'message' => 'Chưa có bài thi hôm nay cho lớp này.',
+                'message' => 'Chưa có bài thi cho lớp này.',
             ], 404);
         }
 
@@ -40,7 +38,6 @@ class ExamController extends Controller
             'exam' => [
                 'id' => $exam->id,
                 'name' => $exam->name,
-                'date' => $exam->date->format('Y-m-d'),
                 'totalQuestions' => $exam->total_questions,
                 'maxScore' => $exam->max_score,
                 'gradingMode' => $exam->grading_mode,
@@ -63,16 +60,13 @@ class ExamController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $existing = Exam::where('class_id', $classId)
-            ->where('date', today())
-            ->first();
+        $existing = Exam::where('class_id', $classId)->first();
 
         if ($existing) {
             return response()->json([
                 'exam' => [
                     'id' => $existing->id,
                     'name' => $existing->name,
-                    'date' => $existing->date->format('Y-m-d'),
                     'totalQuestions' => $existing->total_questions,
                     'maxScore' => $existing->max_score,
                     'gradingMode' => $existing->grading_mode,
@@ -85,8 +79,7 @@ class ExamController extends Controller
 
         $exam = Exam::create([
             'class_id' => $classId,
-            'name' => 'Bài thi '.$class->code.' - '.today()->format('d/m/Y'),
-            'date' => today(),
+            'name' => 'Bài thi '.$class->code,
             'total_questions' => $request->integer('total_questions'),
             'max_score' => $maxScore,
             'grading_mode' => $request->input('grading_mode', 'counting'),
@@ -97,7 +90,6 @@ class ExamController extends Controller
             'exam' => [
                 'id' => $exam->id,
                 'name' => $exam->name,
-                'date' => $exam->date->format('Y-m-d'),
                 'totalQuestions' => $exam->total_questions,
                 'maxScore' => $exam->max_score,
                 'gradingMode' => $exam->grading_mode,
@@ -116,10 +108,8 @@ class ExamController extends Controller
         );
 
         $spreadsheet = $this->exporter->export($exam);
-        // Tên exam có thể chứa ngày dạng "d/m/Y" (vd "Bài thi ... - 15/07/2026")
-        // nên phải bỏ ký tự "/" và "\" trước khi dùng làm tên file.
         $safeName = str_replace(['/', '\\', ' '], ['-', '-', '_'], $exam->name);
-        $filename = 'Diem_'.$exam->class->code.'_'.$safeName.'_'.$exam->date->format('Y-m-d').'.xlsx';
+        $filename = 'Diem_'.$exam->class->code.'_'.$safeName.'_'.now()->format('Y-m-d').'.xlsx';
 
         return response()->streamDownload(function () use ($spreadsheet) {
             (new Xlsx($spreadsheet))->save('php://output');

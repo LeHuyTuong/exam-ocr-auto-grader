@@ -25,8 +25,6 @@ class ExamResource extends Resource
                     ->required(),
                 Forms\Components\TextInput::make('name')
                     ->required(),
-                Forms\Components\DatePicker::make('date')
-                    ->required(),
                 Forms\Components\TextInput::make('total_questions')
                     ->required()
                     ->numeric()
@@ -57,9 +55,6 @@ class ExamResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('date')
-                    ->date()
-                    ->sortable(),
                 Tables\Columns\TextColumn::make('total_questions')
                     ->numeric()
                     ->sortable(),

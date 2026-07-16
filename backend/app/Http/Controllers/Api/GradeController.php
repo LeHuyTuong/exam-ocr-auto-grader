@@ -68,10 +68,18 @@ class GradeController extends Controller
 
         $examId = $request->integer('exam_id');
 
-        if (Grade::where('exam_id', $examId)->where('student_id', $studentId)->exists()) {
+        // Không chặn chấm lại vĩnh viễn (1 học sinh có thể có nhiều bài kiểm
+        // tra theo thời gian) — chỉ chặn chấm trùng trong 5 phút để tránh lỗi
+        // thao tác (chụp/gửi nhầm 2 lần cùng 1 ảnh).
+        $recentDuplicate = Grade::where('exam_id', $examId)
+            ->where('student_id', $studentId)
+            ->where('created_at', '>=', now()->subMinutes(5))
+            ->exists();
+
+        if ($recentDuplicate) {
             return response()->json([
                 'error' => 'DUPLICATE',
-                'message' => 'Học sinh này đã có điểm cho bài thi này.',
+                'message' => 'Học sinh này vừa được chấm điểm trong 5 phút qua.',
             ], 409);
         }
 

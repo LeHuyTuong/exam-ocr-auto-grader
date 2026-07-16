@@ -31,7 +31,6 @@ class GradeTest extends TestCase
         $this->user->classes()->attach($this->class->id);
         $this->exam = Exam::factory()->create([
             'class_id' => $this->class->id,
-            'date' => today(),
             'total_questions' => 50,
             'max_score' => 10,
         ]);
@@ -184,5 +183,49 @@ class GradeTest extends TestCase
     {
         $response = $this->getJson('/api/grades?exam_id=1');
         $response->assertStatus(401);
+    }
+
+    public function test_store_grade_blocks_duplicate_within_five_minutes(): void
+    {
+        Grade::factory()->create([
+            'exam_id' => $this->exam->id,
+            'class_id' => $this->class->id,
+            'student_id' => $this->student->id,
+            'created_at' => now()->subMinutes(2),
+        ]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/grades', [
+                'exam_id' => $this->exam->id,
+                'class_id' => $this->class->id,
+                'student_id' => $this->student->id,
+                'total_correct' => 40,
+                'score' => 8.0,
+                'ocr_raw_name' => 'Nguyen Van A',
+            ]);
+
+        $response->assertStatus(409)->assertJson(['error' => 'DUPLICATE']);
+    }
+
+    public function test_store_grade_allows_regrade_after_five_minutes(): void
+    {
+        Grade::factory()->create([
+            'exam_id' => $this->exam->id,
+            'class_id' => $this->class->id,
+            'student_id' => $this->student->id,
+            'created_at' => now()->subMinutes(10),
+        ]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/grades', [
+                'exam_id' => $this->exam->id,
+                'class_id' => $this->class->id,
+                'student_id' => $this->student->id,
+                'total_correct' => 40,
+                'score' => 8.0,
+                'ocr_raw_name' => 'Nguyen Van A',
+            ]);
+
+        $response->assertStatus(201);
     }
 }

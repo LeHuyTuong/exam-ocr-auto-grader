@@ -56,7 +56,7 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
 
   Future<void> _selectClass(SchoolClass cls) async {
     try {
-      final exam = await _service.getTodayExam(cls.id);
+      final exam = await _service.getClassExam(cls.id);
       int totalQuestions;
       int? maxScore;
       String gradingMode;
@@ -71,7 +71,7 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
         totalQuestions = result['totalQuestions'] as int? ?? 50;
         maxScore = result['maxScore'] as int?;
         gradingMode = result['gradingMode'] as String? ?? 'counting';
-        await _service.createTodayExam(cls.id, totalQuestions, maxScore,
+        await _service.createClassExam(cls.id, totalQuestions, maxScore,
             gradingMode: gradingMode);
       } else {
         final examData = exam['exam'] as Map<String, dynamic>?;
