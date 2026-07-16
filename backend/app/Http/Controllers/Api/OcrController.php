@@ -145,7 +145,9 @@ class OcrController extends Controller
         }
 
         if ($mode === 'name') {
-            $candidates = $this->fuzzyMatch->findCandidates($result->studentName, $classId);
+            $candidates = $result->studentName !== null
+                ? $this->fuzzyMatch->findCandidates($result->studentName, $classId)
+                : [];
 
             return response()->json([
                 'candidates' => $candidates,
