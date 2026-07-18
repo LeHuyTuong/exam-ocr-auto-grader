@@ -1,8 +1,11 @@
 <?php
 
+use App\Models\SchoolClass;
 use App\Models\User;
+use App\Models\Yle\YleExam;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -48,16 +51,37 @@ Route::get('/__deploy', function (Request $request) {
     Artisan::call('db:seed', ['--class' => 'RolePermissionSeeder', '--force' => true]);
     $result['seed'] = Artisan::output();
 
-    // Cột role cũ đã bị migration xóa → gán lại role cho user đang tồn tại.
-    $assigned = [];
-    foreach (User::all() as $user) {
-        if ($user->roles()->count() === 0) {
-            $role = $user->email === 'admin@chamthi.com' ? 'admin' : 'teacher';
-            $user->assignRole($role);
-            $assigned[] = "{$user->email} => {$role}";
-        }
-    }
-    $result['roles_assigned'] = $assigned;
-
     return response()->json(['status' => 'done', 'detail' => $result]);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Dọn dữ liệu seed/demo trên production — CHẠY MỘT LẦN RỒI XÓA ROUTE NÀY
+|--------------------------------------------------------------------------
+| Xóa lớp TA-101 (cascade: học sinh, exam, điểm) + toàn bộ đề Cambridge YLE
+| (cascade: parts, questions, submissions). KHÔNG đụng tới user (admin +
+| giáo viên vẫn giữ nguyên). Bảo vệ bằng cùng DEPLOY_TOKEN với /__deploy.
+*/
+Route::get('/__cleanup', function (Request $request) {
+    $expected = (string) config('deploy.token');
+    abort_if($expected === '', 403);
+    abort_unless(hash_equals($expected, (string) $request->query('token')), 403);
+
+    return DB::transaction(function () {
+        $classesDeleted = SchoolClass::where('code', 'TA-101')->get();
+        $classCodes = $classesDeleted->pluck('code')->all();
+        SchoolClass::where('code', 'TA-101')->each(fn ($c) => $c->delete());
+
+        $yleCount = YleExam::count();
+        YleExam::query()->each(fn ($e) => $e->delete());
+
+        $remainingUsers = User::query()->pluck('email')->all();
+
+        return response()->json([
+            'status' => 'done',
+            'deleted_classes' => $classCodes,
+            'deleted_yle_exams' => $yleCount,
+            'remaining_users' => $remainingUsers,
+        ]);
+    });
 });
