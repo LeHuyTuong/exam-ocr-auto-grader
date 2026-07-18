@@ -104,6 +104,34 @@ class FuzzyMatchServiceTest extends TestCase
         $this->assertNotEmpty($candidates);
     }
 
+    public function test_normalize_and_similarity_tolerate_null(): void
+    {
+        // AI / student data can carry nulls; these must not throw a TypeError
+        // (which is a \Error, not \Exception — it would escape the OCR
+        // controller's catch and surface as a raw 500).
+        $this->assertSame('', $this->service->normalize(null));
+        $this->assertIsFloat($this->service->similarity('nguyen van a', null));
+        $this->assertIsFloat($this->service->similarity(null, null));
+    }
+
+    public function test_find_candidates_survives_student_with_null_alias(): void
+    {
+        $class = SchoolClass::factory()->create();
+
+        Student::factory()->create([
+            'class_id' => $class->id,
+            'full_name' => 'Nguyen Van A',
+            'normalized_name' => $this->service->normalize('Nguyen Van A'),
+            'aliases' => [null, 'nva'],
+        ]);
+
+        // Previously threw TypeError on normalize(null) -> uncaught 500.
+        $candidates = $this->service->findCandidates('Nguyen Van A', $class->id);
+
+        $this->assertNotEmpty($candidates);
+        $this->assertEquals(1.0, $candidates[0]['similarity']);
+    }
+
     public function test_find_candidates_returns_max_5_results(): void
     {
         $class = SchoolClass::factory()->create();

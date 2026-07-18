@@ -70,7 +70,7 @@ class OcrController extends Controller
             ? round(($result->totalCorrect / $exam->total_questions) * $exam->max_score, 2)
             : 0.0;
 
-        $candidates = $this->fuzzyMatch->findCandidates($result->studentName, $classId);
+        $candidates = $this->safeFindCandidates($result->studentName, $classId);
 
         return response()->json([
             'candidates' => $candidates,
@@ -140,9 +140,7 @@ class OcrController extends Controller
         }
 
         if ($mode === 'name') {
-            $candidates = $result->studentName !== null
-                ? $this->fuzzyMatch->findCandidates($result->studentName, $classId)
-                : [];
+            $candidates = $this->safeFindCandidates($result->studentName, $classId);
 
             return response()->json([
                 'candidates' => $candidates,
@@ -165,5 +163,28 @@ class OcrController extends Controller
             'imageUrl' => $imageUrl,
             'examId' => $exam->id,
         ]);
+    }
+
+    /**
+     * Fuzzy name-matching is a best-effort convenience, not core to reading the
+     * paper. Bad student data (a null normalized_name / alias) can make it throw
+     * a \Throwable that isn't a \Exception, so guard it here and degrade to an
+     * empty candidate list rather than crashing the whole OCR request with a 500.
+     *
+     * @return array<int, array{studentId:int, fullName:string, similarity:float}>
+     */
+    private function safeFindCandidates(?string $name, int $classId): array
+    {
+        if ($name === null || trim($name) === '') {
+            return [];
+        }
+
+        try {
+            return $this->fuzzyMatch->findCandidates($name, $classId);
+        } catch (\Throwable $e) {
+            Log::warning('Fuzzy name match failed', ['class_id' => $classId, 'error' => $e->getMessage()]);
+
+            return [];
+        }
     }
 }

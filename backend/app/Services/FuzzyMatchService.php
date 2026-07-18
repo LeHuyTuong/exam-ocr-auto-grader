@@ -18,13 +18,20 @@ class FuzzyMatchService
 
             $namesToCheck = [$student->normalized_name];
 
-            if ($student->aliases) {
+            if (is_array($student->aliases)) {
                 foreach ($student->aliases as $alias) {
                     $namesToCheck[] = $this->normalize($alias);
                 }
             }
 
             foreach ($namesToCheck as $name) {
+                // Bỏ qua tên rỗng/null (dữ liệu học sinh có thể thiếu
+                // normalized_name hoặc chứa alias null) — trước đây lọt vào
+                // similarity() gây TypeError → 500 (TypeError không phải
+                // \Exception nên không bị controller bắt).
+                if ($name === null || $name === '') {
+                    continue;
+                }
                 $sim = $this->similarity($normalized, $name);
                 if ($sim > $bestSimilarity) {
                     $bestSimilarity = $sim;
@@ -45,8 +52,11 @@ class FuzzyMatchService
         return array_slice($candidates, 0, 5);
     }
 
-    public function normalize(string $name): string
+    public function normalize(?string $name): string
     {
+        if ($name === null) {
+            return '';
+        }
         $name = mb_strtolower(trim($name), 'UTF-8');
 
         $charMap = [
@@ -72,10 +82,10 @@ class FuzzyMatchService
         return trim($name);
     }
 
-    public function similarity(string $a, string $b): float
+    public function similarity(?string $a, ?string $b): float
     {
-        $a = trim(preg_replace('/\s+/', ' ', $a));
-        $b = trim(preg_replace('/\s+/', ' ', $b));
+        $a = trim(preg_replace('/\s+/', ' ', $a ?? ''));
+        $b = trim(preg_replace('/\s+/', ' ', $b ?? ''));
 
         if ($a === $b) {
             return 1.0;
