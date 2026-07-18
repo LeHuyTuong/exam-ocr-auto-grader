@@ -63,6 +63,15 @@ class ExamController extends Controller
         $existing = Exam::where('class_id', $classId)->first();
 
         if ($existing) {
+            // Lớp đã có bài: cập nhật cấu hình tại chỗ (nhất là grading_mode) để
+            // giáo viên đổi kiểu chấm ngay từ app. Trước đây trả về nguyên trạng
+            // nên lỡ chọn nhầm kiểu chấm là kẹt, chỉ sửa được qua trang admin.
+            $existing->update([
+                'total_questions' => $request->integer('total_questions'),
+                'max_score' => $request->input('max_score', $request->integer('total_questions')),
+                'grading_mode' => $request->input('grading_mode', $existing->grading_mode),
+            ]);
+
             return response()->json([
                 'exam' => [
                     'id' => $existing->id,

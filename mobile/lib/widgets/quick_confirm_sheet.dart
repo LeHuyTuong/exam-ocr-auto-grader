@@ -103,6 +103,24 @@ class _QuickConfirmSheetState extends State<QuickConfirmSheet> {
   Future<void> _save() async {
     _countdownActive = false;
     _countdownTimer?.cancel();
+
+    // Chặn sớm ở client: chưa chọn học sinh và cũng không tạo mới thì backend
+    // sẽ trả VALIDATION_ERROR — hiện hướng dẫn rõ ràng thay vì để lỗi thoáng qua.
+    if (!_createNew && _selectedStudentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hãy chọn học sinh từ gợi ý, hoặc bấm "Học sinh mới".'),
+        ),
+      );
+      return;
+    }
+    if (_createNew && _nameCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hãy nhập tên học sinh mới.')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
     try {
       await _service.saveGrade(

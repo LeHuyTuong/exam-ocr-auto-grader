@@ -105,6 +105,49 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
     }
   }
 
+  /// Đổi kiểu chấm cho lớp đã có bài — mở lại hộp thoại (điền sẵn cấu hình
+  /// hiện tại) rồi cập nhật exam. Giáo viên lỡ chọn nhầm không còn bị kẹt.
+  Future<void> _changeGradingMode(SchoolClass cls) async {
+    try {
+      final exam = await _service.getClassExam(cls.id);
+      final examData = exam?['exam'] as Map<String, dynamic>?;
+      if (!mounted) return;
+
+      final result = await showDialog<Map<String, dynamic>>(
+        context: context,
+        builder: (ctx) => _ExamDialog(
+          classCode: cls.code,
+          initialMode: examData?.tryGet('gradingMode') as String?,
+          initialQuestions: examData?.tryGet('totalQuestions') as int?,
+          initialMaxScore: examData?.tryGet('maxScore') as int?,
+          confirmLabel: 'Lưu',
+        ),
+      );
+      if (result == null) return;
+
+      await _service.createClassExam(
+        cls.id,
+        result['totalQuestions'] as int? ?? 50,
+        result['maxScore'] as int?,
+        gradingMode: result['gradingMode'] as String? ?? 'counting',
+      );
+      if (!mounted) return;
+
+      final modeLabel = (result['gradingMode'] as String?) == 'graded'
+          ? 'Unit Test đã chấm tay'
+          : 'Đếm câu đúng';
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Đã đổi kiểu chấm: $modeLabel')),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Lỗi: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -172,10 +215,30 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
                                   ],
                                 ),
                               ),
-                              Icon(
-                                Icons.arrow_forward_ios,
-                                size: 16,
-                                color: theme.colorScheme.onSurfaceVariant,
+                              PopupMenuButton<String>(
+                                icon: Icon(
+                                  Icons.more_vert,
+                                  size: 20,
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                                tooltip: 'Tuỳ chọn',
+                                onSelected: (v) {
+                                  if (v == 'change_mode') {
+                                    _changeGradingMode(cls);
+                                  }
+                                },
+                                itemBuilder: (_) => const [
+                                  PopupMenuItem(
+                                    value: 'change_mode',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.tune, size: 18),
+                                        SizedBox(width: 8),
+                                        Text('Đổi kiểu chấm'),
+                                      ],
+                                    ),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -192,7 +255,18 @@ extension _MapTryGet on Map<String, dynamic> {
 
 class _ExamDialog extends StatefulWidget {
   final String classCode;
-  const _ExamDialog({required this.classCode});
+  final String? initialMode;
+  final int? initialQuestions;
+  final int? initialMaxScore;
+  final String confirmLabel;
+
+  const _ExamDialog({
+    required this.classCode,
+    this.initialMode,
+    this.initialQuestions,
+    this.initialMaxScore,
+    this.confirmLabel = 'Bắt đầu',
+  });
 
   @override
   State<_ExamDialog> createState() => _ExamDialogState();
@@ -201,9 +275,22 @@ class _ExamDialog extends StatefulWidget {
 enum _GradingMode { counting, graded }
 
 class _ExamDialogState extends State<_ExamDialog> {
-  final _questionsCtrl = TextEditingController(text: '50');
-  final _maxScoreCtrl = TextEditingController(text: '10');
-  _GradingMode _mode = _GradingMode.counting;
+  late final TextEditingController _questionsCtrl;
+  late final TextEditingController _maxScoreCtrl;
+  late _GradingMode _mode;
+
+  @override
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode == 'graded'
+        ? _GradingMode.graded
+        : _GradingMode.counting;
+    _questionsCtrl = TextEditingController(
+        text: (widget.initialQuestions ?? 50).toString());
+    _maxScoreCtrl = TextEditingController(
+        text: (widget.initialMaxScore ?? (_mode == _GradingMode.graded ? 50 : 10))
+            .toString());
+  }
 
   @override
   void dispose() {
@@ -305,7 +392,7 @@ class _ExamDialogState extends State<_ExamDialog> {
               'gradingMode': 'counting',
             });
           },
-          child: const Text('Bắt đầu'),
+          child: Text(widget.confirmLabel),
         ),
       ],
     );

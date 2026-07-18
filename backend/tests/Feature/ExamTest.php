@@ -70,20 +70,36 @@ class ExamTest extends TestCase
         ]);
     }
 
-    public function test_create_today_exam_returns_existing_if_already_exists(): void
+    public function test_posting_to_existing_class_exam_updates_it_in_place(): void
     {
-        $exam = Exam::factory()->create();
+        // A class keeps a single exam now, so re-posting updates that row
+        // (esp. grading_mode) instead of creating a duplicate — this is what
+        // powers the in-app "Đổi kiểu chấm" action. It must not mint a new row.
+        $exam = Exam::factory()->create([
+            'total_questions' => 50,
+            'grading_mode' => 'counting',
+        ]);
         $this->user->classes()->attach($exam->class_id);
 
         $response = $this->withHeaders($this->jwtAs($this->user))
             ->postJson('/api/exams/today', [
                 'class_id' => $exam->class_id,
                 'total_questions' => 99,
+                'max_score' => 99,
+                'grading_mode' => 'graded',
             ]);
 
-        $response->assertStatus(200);
-        $this->assertDatabaseHas('exams', ['id' => $exam->id, 'total_questions' => $exam->total_questions]);
-        $this->assertDatabaseMissing('exams', ['total_questions' => 99]);
+        $response->assertStatus(200)
+            ->assertJsonPath('exam.id', $exam->id)
+            ->assertJsonPath('exam.gradingMode', 'graded');
+
+        // Same row, updated — not a duplicate.
+        $this->assertSame(1, Exam::where('class_id', $exam->class_id)->count());
+        $this->assertDatabaseHas('exams', [
+            'id' => $exam->id,
+            'total_questions' => 99,
+            'grading_mode' => 'graded',
+        ]);
     }
 
     public function test_create_today_exam_with_graded_mode(): void
