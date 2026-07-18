@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../models/extract_result.dart';
 import '../theme/app_colors.dart';
 import '../services/exam_service.dart';
+import '../utils/error_utils.dart';
 import 'confidence_badge.dart';
 import 'score_display.dart';
 import 'primary_button.dart';
@@ -139,10 +140,9 @@ class _QuickConfirmSheetState extends State<QuickConfirmSheet> {
       if (mounted) setState(() => _saved = true);
     } catch (e) {
       setState(() => _saving = false);
-      String message = 'Lỗi lưu: $e';
-      if (e is DioException && e.response?.statusCode == 409) {
-        message = 'Học sinh này đã có điểm cho bài thi này.';
-      }
+      final message = (e is DioException && e.response?.statusCode == 409)
+          ? 'Học sinh này đã có điểm cho bài thi này.'
+          : friendlyError(e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),

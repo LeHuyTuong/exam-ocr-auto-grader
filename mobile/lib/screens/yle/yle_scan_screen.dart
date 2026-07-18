@@ -86,7 +86,7 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi tạo submission: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }
@@ -141,7 +141,9 @@ class _YleScanScreenState extends State<YleScanScreen> with WidgetsBindingObserv
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi camera: $e')),
+          const SnackBar(
+            content: Text('Không thể khởi động camera. Kiểm tra quyền truy cập.'),
+          ),
         );
       }
     }

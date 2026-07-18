@@ -135,7 +135,9 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi camera: $e')),
+          const SnackBar(
+            content: Text('Không thể khởi động camera. Kiểm tra quyền truy cập.'),
+          ),
         );
       }
     }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/yle_models.dart';
 import '../../services/yle_service.dart';
+import '../../utils/error_utils.dart';
 
 class YleStudentConfirmScreen extends StatefulWidget {
   final int submissionId;
@@ -78,7 +79,7 @@ class _YleStudentConfirmScreenState extends State<YleStudentConfirmScreen> {
       setState(() => _saving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

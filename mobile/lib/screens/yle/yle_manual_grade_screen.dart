@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../models/yle_models.dart';
 import '../../services/yle_service.dart';
+import '../../utils/error_utils.dart';
 import 'yle_result_screen.dart';
 
 class YleManualGradeScreen extends StatefulWidget {
@@ -81,7 +82,7 @@ class _YleManualGradeScreenState extends State<YleManualGradeScreen> {
       setState(() => _saving = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

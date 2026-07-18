@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/extract_result.dart';
 import '../services/exam_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_utils.dart';
 import '../widgets/confidence_badge.dart';
 import '../widgets/score_display.dart';
 import '../widgets/primary_button.dart';
@@ -97,10 +98,9 @@ class _ConfirmScreenState extends State<ConfirmScreen> {
       }
     } catch (e) {
       setState(() => _saving = false);
-      String message = 'Lỗi lưu: $e';
-      if (e is DioException && e.response?.statusCode == 409) {
-        message = 'Học sinh này đã có điểm cho bài thi này.';
-      }
+      final message = (e is DioException && e.response?.statusCode == 409)
+          ? 'Học sinh này đã có điểm cho bài thi này.'
+          : friendlyError(e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),

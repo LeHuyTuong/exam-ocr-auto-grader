@@ -6,6 +6,7 @@ import 'package:share_plus/share_plus.dart';
 import '../models/grade.dart';
 import '../models/school_class.dart';
 import '../services/exam_service.dart';
+import '../utils/error_utils.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/loading_view.dart';
@@ -112,7 +113,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi xuất Excel: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

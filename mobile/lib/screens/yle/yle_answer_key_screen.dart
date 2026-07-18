@@ -160,7 +160,7 @@ class _ExamCardState extends State<_ExamCard> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/graded_paper_result.dart';
 import '../services/exam_service.dart';
 import '../theme/app_colors.dart';
+import '../utils/error_utils.dart';
 import '../widgets/confidence_badge.dart';
 import '../widgets/primary_button.dart';
 
@@ -129,10 +130,9 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _saving = false);
-      String message = 'Lỗi lưu: $e';
-      if (e is DioException && e.response?.statusCode == 409) {
-        message = 'Học sinh này đã có điểm cho bài thi này.';
-      }
+      final message = (e is DioException && e.response?.statusCode == 409)
+          ? 'Học sinh này đã có điểm cho bài thi này.'
+          : friendlyError(e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(message)),

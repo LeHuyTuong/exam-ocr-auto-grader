@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/school_class.dart';
 import '../services/exam_service.dart';
+import '../utils/error_utils.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
@@ -99,7 +100,7 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }
@@ -142,7 +143,7 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Lỗi: $e')),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }
