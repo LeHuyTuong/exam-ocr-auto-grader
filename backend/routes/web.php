@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -48,4 +49,29 @@ Route::get('/__deploy', function (Request $request) {
     $result['seed'] = Artisan::output();
 
     return response()->json(['status' => 'done', 'detail' => $result]);
+});
+
+/*
+|--------------------------------------------------------------------------
+| Dọn user thừa trên production — CHẠY MỘT LẦN RỒI XÓA ROUTE NÀY
+|--------------------------------------------------------------------------
+| Xóa mọi user KHÔNG PHẢI admin@chamthi.com / coa@chamthi.com (1 admin
+| trùng do bug seeder cũ + các email tự đăng ký lúc test). Bảo vệ bằng
+| cùng DEPLOY_TOKEN với /__deploy.
+*/
+Route::get('/__cleanup-users', function (Request $request) {
+    $expected = (string) config('deploy.token');
+    abort_if($expected === '', 403);
+    abort_unless(hash_equals($expected, (string) $request->query('token')), 403);
+
+    $keep = ['admin@chamthi.com', 'coa@chamthi.com'];
+    $toDelete = User::whereNotIn('email', $keep)->get();
+    $deletedEmails = $toDelete->pluck('email')->all();
+    User::whereNotIn('email', $keep)->each(fn ($u) => $u->delete());
+
+    return response()->json([
+        'status' => 'done',
+        'deleted_users' => $deletedEmails,
+        'remaining_users' => User::pluck('email')->all(),
+    ]);
 });

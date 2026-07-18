@@ -141,3 +141,13 @@ jobs:
           curl -fsS --max-time 300 "${DEPLOY_URL}/__deploy?token=${DEPLOY_TOKEN}" \
             || curl -fsS --max-time 300 "${DEPLOY_URL/https:/http:}/__deploy?token=${DEPLOY_TOKEN}"
           echo ""
+
+      # TẠM THỜI — chạy đúng 1 lần để xóa user thừa trên production, sẽ xóa
+      # cả bước này lẫn route /__cleanup-users ngay sau khi xác nhận thành công.
+      - name: ONE-OFF cleanup stray users (production only)
+        if: env.SKIP_DEPLOY != 'true' && env.DEPLOY_ENV == 'production'
+        run: |
+          echo "Gọi /__cleanup-users (một lần)..."
+          curl -fsS --max-time 120 "${DEPLOY_URL}/__cleanup-users?token=${DEPLOY_TOKEN}" \
+            || curl -fsS --max-time 120 "${DEPLOY_URL/https:/http:}/__cleanup-users?token=${DEPLOY_TOKEN}"
+          echo ""
