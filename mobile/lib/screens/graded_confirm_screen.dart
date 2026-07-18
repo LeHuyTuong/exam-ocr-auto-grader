@@ -86,6 +86,23 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
   bool get _sumMismatch => _sumOfSubScores != _total;
 
   Future<void> _save() async {
+    // Chưa chọn học sinh và cũng không tạo mới thì backend trả 422 — báo rõ
+    // thay vì để lỗi thô "Lỗi lưu: DioException 422" hiện lên.
+    if (!_createNew && _selectedStudentId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Hãy chọn học sinh từ gợi ý, hoặc bấm "Đây là học sinh mới".'),
+        ),
+      );
+      return;
+    }
+    if (_createNew && _nameCtrl.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hãy nhập tên học sinh mới.')),
+      );
+      return;
+    }
+
     setState(() => _saving = true);
 
     try {
