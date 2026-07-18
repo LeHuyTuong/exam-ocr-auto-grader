@@ -10,13 +10,22 @@ class ExamService {
     return res.data as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> createClass(
+      String code, String name, String level) async {
+    final res = await _api.post('/classes', data: {
+      'code': code,
+      'name': name,
+      'level': level,
+    });
+    return res.data as Map<String, dynamic>;
+  }
+
   /// Mỗi lớp chỉ có đúng 1 exam (config chấm bài), không còn phân biệt theo
   /// ngày — endpoint backend vẫn tên "/exams/today" nhưng nay trả về exam
   /// duy nhất của lớp, dùng chung cho mọi lần chấm.
   Future<Map<String, dynamic>?> getClassExam(int classId) async {
     try {
-      final res =
-          await _api.get('/exams/today', params: {'class_id': classId});
+      final res = await _api.get('/exams/today', params: {'class_id': classId});
       return res.data as Map<String, dynamic>?;
     } catch (_) {
       return null;
@@ -43,7 +52,8 @@ class ExamService {
     if (mlkitHint != null) {
       fields['mlkit_hint'] = mlkitHint;
     }
-    final res = await _api.uploadImage('/ocr/extract', imagePath, fields: fields);
+    final res =
+        await _api.uploadImage('/ocr/extract', imagePath, fields: fields);
     return ExtractResult.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -97,8 +107,8 @@ class ExamService {
     if (mlkitHint != null) {
       fields['mlkit_hint'] = mlkitHint;
     }
-    final res =
-        await _api.uploadImage('/ocr/extract-graded', imagePath, fields: fields);
+    final res = await _api.uploadImage('/ocr/extract-graded', imagePath,
+        fields: fields);
     return GradedNameResult.fromJson(res.data as Map<String, dynamic>);
   }
 
@@ -112,13 +122,14 @@ class ExamService {
     if (mlkitHint != null) {
       fields['mlkit_hint'] = mlkitHint;
     }
-    final res =
-        await _api.uploadImage('/ocr/extract-graded', imagePath, fields: fields);
+    final res = await _api.uploadImage('/ocr/extract-graded', imagePath,
+        fields: fields);
     return GradedScoresResult.fromJson(res.data as Map<String, dynamic>);
   }
 
   /// Raw .xlsx bytes for the class/exam grade sheet, ready to share or save.
-  Future<List<int>> downloadExcel(int examId) => _api.getBytes('/exams/$examId/export');
+  Future<List<int>> downloadExcel(int examId) =>
+      _api.getBytes('/exams/$examId/export');
 
   Future<Map<String, dynamic>> getGrades(int examId,
       {int? classId, int? studentId, int page = 1, int perPage = 15}) async {

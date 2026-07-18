@@ -38,8 +38,7 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
       if (mounted) {
         setState(() {
           _classes = (data['classes'] as List?)
-                  ?.map(
-                      (c) => SchoolClass.fromJson(c as Map<String, dynamic>))
+                  ?.map((c) => SchoolClass.fromJson(c as Map<String, dynamic>))
                   .toList() ??
               [];
           _loading = false;
@@ -149,6 +148,34 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
     }
   }
 
+  Future<void> _createClass() async {
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (_) => const _CreateClassDialog(),
+    );
+    if (result == null) return;
+
+    try {
+      await _service.createClass(
+        result['code']!,
+        result['name']!,
+        result['level']!,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Đã tạo lớp ${result['code']}')),
+        );
+      }
+      _loadClasses();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -157,6 +184,11 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
       appBar: AppBar(
         title: const Text('Chọn lớp'),
         centerTitle: true,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createClass,
+        icon: const Icon(Icons.add),
+        label: const Text('Tạo lớp'),
       ),
       body: _loading
           ? const LoadingView(message: 'Đang tải danh sách lớp...')
@@ -207,8 +239,8 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
                                     const SizedBox(height: 2),
                                     Text(
                                       'Cấp: ${cls.level}',
-                                      style: theme.textTheme.bodySmall
-                                          ?.copyWith(
+                                      style:
+                                          theme.textTheme.bodySmall?.copyWith(
                                         color:
                                             theme.colorScheme.onSurfaceVariant,
                                       ),
@@ -286,11 +318,12 @@ class _ExamDialogState extends State<_ExamDialog> {
     _mode = widget.initialMode == 'graded'
         ? _GradingMode.graded
         : _GradingMode.counting;
-    _questionsCtrl = TextEditingController(
-        text: (widget.initialQuestions ?? 50).toString());
+    _questionsCtrl =
+        TextEditingController(text: (widget.initialQuestions ?? 50).toString());
     _maxScoreCtrl = TextEditingController(
-        text: (widget.initialMaxScore ?? (_mode == _GradingMode.graded ? 50 : 10))
-            .toString());
+        text:
+            (widget.initialMaxScore ?? (_mode == _GradingMode.graded ? 50 : 10))
+                .toString());
   }
 
   @override
@@ -317,7 +350,8 @@ class _ExamDialogState extends State<_ExamDialog> {
               groupValue: _mode,
               onChanged: (v) => setState(() {
                 _mode = v ?? _GradingMode.counting;
-                if (_mode == _GradingMode.graded && _maxScoreCtrl.text == '10') {
+                if (_mode == _GradingMode.graded &&
+                    _maxScoreCtrl.text == '10') {
                   _maxScoreCtrl.text = '50';
                 }
               }),
@@ -354,7 +388,9 @@ class _ExamDialogState extends State<_ExamDialog> {
               controller: _maxScoreCtrl,
               decoration: InputDecoration(
                 labelText: 'Thang điểm',
-                hintText: _mode == _GradingMode.counting ? 'Để trống = số câu hỏi' : '50',
+                hintText: _mode == _GradingMode.counting
+                    ? 'Để trống = số câu hỏi'
+                    : '50',
               ),
               keyboardType: TextInputType.number,
             ),
@@ -394,6 +430,94 @@ class _ExamDialogState extends State<_ExamDialog> {
             });
           },
           child: Text(widget.confirmLabel),
+        ),
+      ],
+    );
+  }
+}
+
+class _CreateClassDialog extends StatefulWidget {
+  const _CreateClassDialog();
+
+  @override
+  State<_CreateClassDialog> createState() => _CreateClassDialogState();
+}
+
+class _CreateClassDialogState extends State<_CreateClassDialog> {
+  final _codeCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  String _level = 'primary';
+  String? _error;
+
+  @override
+  void dispose() {
+    _codeCtrl.dispose();
+    _nameCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Tạo lớp mới'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _codeCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Mã lớp',
+                hintText: 'VD: TA-201',
+              ),
+              textCapitalization: TextCapitalization.characters,
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _nameCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Tên lớp',
+                hintText: 'VD: Tiếng Anh 201',
+              ),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _level,
+              decoration: const InputDecoration(labelText: 'Cấp'),
+              items: const [
+                DropdownMenuItem(value: 'primary', child: Text('Tiểu học')),
+                DropdownMenuItem(value: 'secondary', child: Text('THCS/THPT')),
+              ],
+              onChanged: (v) => setState(() => _level = v ?? 'primary'),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 8),
+              Text(_error!, style: const TextStyle(color: Colors.red)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Huỷ'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final code = _codeCtrl.text.trim();
+            final name = _nameCtrl.text.trim();
+            if (code.isEmpty || name.isEmpty) {
+              setState(() => _error = 'Nhập đủ mã lớp và tên lớp.');
+              return;
+            }
+            Navigator.pop(context, {
+              'code': code,
+              'name': name,
+              'level': _level,
+            });
+          },
+          child: const Text('Tạo'),
         ),
       ],
     );
