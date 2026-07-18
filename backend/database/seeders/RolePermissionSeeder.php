@@ -15,6 +15,7 @@ class RolePermissionSeeder extends Seeder
 
         $permissions = [
             'class.view',
+            'class.create',
             'exam.view',
             'exam.create',
             'exam.edit',
@@ -37,6 +38,7 @@ class RolePermissionSeeder extends Seeder
         $teacherRole = Role::firstOrCreate(['name' => 'teacher']);
         $teacherRole->syncPermissions([
             'class.view',
+            'class.create',
             'exam.view',
             'exam.create',
             'exam.edit',

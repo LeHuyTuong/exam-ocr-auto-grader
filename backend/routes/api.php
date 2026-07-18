@@ -22,6 +22,8 @@ Route::middleware('auth:api')->group(function () {
 
     Route::get('/classes/mine', [SchoolClassController::class, 'mine'])
         ->middleware('permission:class.view');
+    Route::post('/classes', [SchoolClassController::class, 'store'])
+        ->middleware('permission:class.create');
 
     Route::get('/exams/today', [ExamController::class, 'today'])
         ->middleware('permission:exam.view');
