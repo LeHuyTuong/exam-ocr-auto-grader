@@ -141,14 +141,3 @@ jobs:
           curl -fsS --max-time 300 "${DEPLOY_URL}/__deploy?token=${DEPLOY_TOKEN}" \
             || curl -fsS --max-time 300 "${DEPLOY_URL/https:/http:}/__deploy?token=${DEPLOY_TOKEN}"
           echo ""
-
-      # TẠM THỜI — chạy đúng 1 lần để dọn seed/demo data + xoay JWT_SECRET
-      # trên production, sẽ xóa cả bước này lẫn route /__cleanup ngay sau
-      # khi xác nhận chạy thành công. Chỉ chạy cho môi trường production.
-      - name: ONE-OFF cleanup + jwt rotation (production only)
-        if: env.SKIP_DEPLOY != 'true' && env.DEPLOY_ENV == 'production'
-        run: |
-          echo "Gọi /__cleanup?jwt=1 (một lần)..."
-          curl -fsS --max-time 120 "${DEPLOY_URL}/__cleanup?token=${DEPLOY_TOKEN}&jwt=1" \
-            || curl -fsS --max-time 120 "${DEPLOY_URL/https:/http:}/__cleanup?token=${DEPLOY_TOKEN}&jwt=1"
-          echo ""
