@@ -61,13 +61,17 @@ Route::get('/__deploy', function (Request $request) {
 | Xóa lớp TA-101 (cascade: học sinh, exam, điểm) + toàn bộ đề Cambridge YLE
 | (cascade: parts, questions, submissions). KHÔNG đụng tới user (admin +
 | giáo viên vẫn giữ nguyên). Bảo vệ bằng cùng DEPLOY_TOKEN với /__deploy.
+|
+| Thêm ?jwt=1 để LUÔN sinh JWT_SECRET mới (đăng xuất mọi phiên đang đăng
+| nhập, kể cả app đang test) — cố ý tách riêng khỏi việc xóa data để bạn
+| chủ động chọn thời điểm (nên làm lúc không ai đang dùng app).
 */
 Route::get('/__cleanup', function (Request $request) {
     $expected = (string) config('deploy.token');
     abort_if($expected === '', 403);
     abort_unless(hash_equals($expected, (string) $request->query('token')), 403);
 
-    return DB::transaction(function () {
+    $result = DB::transaction(function () {
         $classesDeleted = SchoolClass::where('code', 'TA-101')->get();
         $classCodes = $classesDeleted->pluck('code')->all();
         SchoolClass::where('code', 'TA-101')->each(fn ($c) => $c->delete());
@@ -77,11 +81,17 @@ Route::get('/__cleanup', function (Request $request) {
 
         $remainingUsers = User::query()->pluck('email')->all();
 
-        return response()->json([
-            'status' => 'done',
+        return [
             'deleted_classes' => $classCodes,
             'deleted_yle_exams' => $yleCount,
             'remaining_users' => $remainingUsers,
-        ]);
+        ];
     });
+
+    if ($request->boolean('jwt')) {
+        Artisan::call('jwt:secret', ['--force' => true]);
+        $result['jwt_secret_rotated'] = true;
+    }
+
+    return response()->json(['status' => 'done'] + $result);
 });
