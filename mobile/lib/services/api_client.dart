@@ -15,12 +15,12 @@ class ApiClient {
   static const String _baseUrlKey = 'api_url';
   static const String _tokenKey = 'auth_token';
   static const String _tokenExpiryKey = 'token_expiry';
-  // Release builds (the APK teachers install) point at the production host so
-  // no manual setup is needed — switch to https here once SSL is enabled.
-  // Debug web/desktop use localhost; the Android emulator uses 10.0.2.2.
-  // Any of these can be overridden at runtime via Settings.
+  // 🔴 SECURITY FIXME (OWASP A02): HTTP plaintext — JWT tokens & exam data
+  // transmitted unencrypted in production. Switch to HTTPS once SSL is enabled
+  // on carbonx.io.vn. After switching, also remove android:usesCleartextTraffic
+  // from AndroidManifest.xml.
   static String get _defaultBaseUrl {
-    if (kReleaseMode) return 'http://carbonx.io.vn/api';
+    if (kReleaseMode) return 'http://carbonx.io.vn/api';  // FIXME: change to https://
     if (kIsWeb) return 'http://127.0.0.1:8080/api';
     return 'http://10.0.2.2:8080/api';
   }

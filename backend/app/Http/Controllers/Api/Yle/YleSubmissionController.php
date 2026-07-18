@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api\Yle;
 
 use App\Http\Controllers\Controller;
+use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\Yle\YleAnswer;
 use App\Models\Yle\YlePart;
@@ -28,15 +29,6 @@ class YleSubmissionController extends Controller
         private YleGradingService $grading,
     ) {}
 
-    private function authorizeAccess(YleSubmission $submission, Request $request): bool
-    {
-        if ($request->user()->isAdmin()) {
-            return true;
-        }
-
-        return $request->user()->classes()->where('class_id', $submission->class_id)->exists();
-    }
-
     public function store(Request $request): JsonResponse
     {
         $request->validate([
@@ -46,8 +38,9 @@ class YleSubmissionController extends Controller
         ]);
 
         $classId = $request->integer('class_id');
+        $schoolClass = SchoolClass::findOrFail($classId);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
@@ -69,7 +62,7 @@ class YleSubmissionController extends Controller
     {
         $submission = YleSubmission::findOrFail($id);
 
-        if (! $this->authorizeAccess($submission, $request)) {
+        if ($request->user()->cannot('update', $submission)) {
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập submission này.'], 403);
         }
 
@@ -134,7 +127,7 @@ class YleSubmissionController extends Controller
     {
         $submission = YleSubmission::findOrFail($id);
 
-        if (! $this->authorizeAccess($submission, $request)) {
+        if ($request->user()->cannot('update', $submission)) {
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập submission này.'], 403);
         }
 
@@ -188,7 +181,7 @@ class YleSubmissionController extends Controller
     {
         $submission = YleSubmission::findOrFail($id);
 
-        if (! $this->authorizeAccess($submission, $request)) {
+        if ($request->user()->cannot('update', $submission)) {
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập submission này.'], 403);
         }
 
@@ -248,7 +241,7 @@ class YleSubmissionController extends Controller
     {
         $answer = YleAnswer::with('submission')->findOrFail($id);
 
-        if (! $this->authorizeAccess($answer->submission, $request)) {
+        if ($request->user()->cannot('update', $answer->submission)) {
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập submission này.'], 403);
         }
 
@@ -281,7 +274,7 @@ class YleSubmissionController extends Controller
             'student',
         ])->findOrFail($id);
 
-        if (! $this->authorizeAccess($submission, $request)) {
+        if ($request->user()->cannot('view', $submission)) {
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem submission này.'], 403);
         }
 
@@ -309,16 +302,24 @@ class YleSubmissionController extends Controller
 
         $query = YleSubmission::with(['exam', 'student']);
 
-        if ($request->has('yle_exam_id')) {
-            $query->where('yle_exam_id', $request->integer('yle_exam_id'));
+        // Non-admin users can only see submissions for their own classes
+        if (! $request->user()->isAdmin()) {
+            $teacherClassIds = $request->user()->classes()->pluck('class_id');
+            if ($request->has('class_id')) {
+                $classId = $request->integer('class_id');
+                if (! $teacherClassIds->contains($classId)) {
+                    return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem lớp này.'], 403);
+                }
+                $query->where('class_id', $classId);
+            } else {
+                $query->whereIn('class_id', $teacherClassIds);
+            }
+        } elseif ($request->has('class_id')) {
+            $query->where('class_id', $request->integer('class_id'));
         }
 
-        if ($request->has('class_id')) {
-            $classId = $request->integer('class_id');
-            if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
-                return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem lớp này.'], 403);
-            }
-            $query->where('class_id', $classId);
+        if ($request->has('yle_exam_id')) {
+            $query->where('yle_exam_id', $request->integer('yle_exam_id'));
         }
 
         if ($request->has('student_id')) {

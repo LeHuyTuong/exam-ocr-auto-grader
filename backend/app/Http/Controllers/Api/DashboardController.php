@@ -8,12 +8,14 @@ use App\Models\Student;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
     public function classStats(Request $request, SchoolClass $schoolClass): JsonResponse
     {
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $schoolClass->id)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: dashboard', ['user_id' => $request->user()->id, 'class_id' => $schoolClass->id, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem lớp này.'], 403);
         }
 
@@ -48,7 +50,8 @@ class DashboardController extends Controller
 
     public function studentStats(Request $request, SchoolClass $schoolClass): JsonResponse
     {
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $schoolClass->id)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: dashboard', ['user_id' => $request->user()->id, 'class_id' => $schoolClass->id, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem lớp này.'], 403);
         }
 

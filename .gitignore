@@ -28,6 +28,8 @@ backend/storage/framework/views/*
 !backend/storage/framework/views/.gitignore
 backend/storage/logs/*
 !backend/storage/logs/.gitignore
+# SQLite database — contains user data, never commit
+backend/database/database.sqlite
 backend/bootstrap/cache/*
 !backend/bootstrap/cache/.gitignore
 backend/.phpunit.cache/

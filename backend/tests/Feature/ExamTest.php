@@ -210,8 +210,13 @@ class ExamTest extends TestCase
         $this->assertNull($sheet->getCell('C3')->getValue());
         $this->assertEquals(30, $sheet->getCell('I3')->getValue());
 
-        // Remarks/personality columns always stay blank for the teacher to fill in.
-        $this->assertNull($sheet->getCell('J2')->getValue());
+        // Cột "CÁC KỸ NĂNG CẦN CẢI THIỆN" (J) tự tính theo ngưỡng 9/9/9/4/4/9:
+        // Nguyen Van A: ngữ pháp 8 (<9), viết 3 (<4), nói 7 (<9) -> 3 kỹ năng yếu.
+        $this->assertSame('Ngữ pháp, Kỹ năng viết, Kỹ năng nói', $sheet->getCell('J2')->getValue());
+        // Tran Van B: không có điểm thành phần -> để trống.
+        $this->assertEmpty($sheet->getCell('J3')->getValue());
+        // Cột nhận xét (K) luôn trống cho giáo viên tự ghi.
+        $this->assertNull($sheet->getCell('K2')->getValue());
 
         unlink($tmp);
     }

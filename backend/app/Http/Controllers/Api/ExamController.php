@@ -8,7 +8,7 @@ use App\Models\SchoolClass;
 use App\Services\GradeExcelExporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ExamController extends Controller
@@ -20,8 +20,10 @@ class ExamController extends Controller
         $request->validate(['class_id' => 'required|exists:school_classes,id']);
 
         $classId = $request->integer('class_id');
+        $schoolClass = SchoolClass::findOrFail($classId);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: exam.today', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
@@ -55,8 +57,10 @@ class ExamController extends Controller
         ]);
 
         $classId = $request->integer('class_id');
+        $schoolClass = SchoolClass::findOrFail($classId);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: exam.today', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
@@ -83,12 +87,11 @@ class ExamController extends Controller
             ]);
         }
 
-        $class = SchoolClass::findOrFail($classId);
         $maxScore = $request->input('max_score', $request->integer('total_questions'));
 
         $exam = Exam::create([
             'class_id' => $classId,
-            'name' => 'Bài thi '.$class->code,
+            'name' => 'Bài thi '.$schoolClass->code,
             'total_questions' => $request->integer('total_questions'),
             'max_score' => $maxScore,
             'grading_mode' => $request->input('grading_mode', 'counting'),
@@ -110,20 +113,8 @@ class ExamController extends Controller
     {
         $exam = Exam::with('class')->findOrFail($id);
 
-        abort_unless(
-            $request->user()->isAdmin() || $request->user()->classes()->where('class_id', $exam->class_id)->exists(),
-            403,
-            'Bạn không có quyền xuất điểm lớp này.'
-        );
+        abort_unless($request->user()->can('view', $exam), 403, 'Bạn không có quyền xuất điểm lớp này.');
 
-        $spreadsheet = $this->exporter->export($exam);
-        $safeName = str_replace(['/', '\\', ' '], ['-', '-', '_'], $exam->name);
-        $filename = 'Diem_'.$exam->class->code.'_'.$safeName.'_'.now()->format('Y-m-d').'.xlsx';
-
-        return response()->streamDownload(function () use ($spreadsheet) {
-            (new Xlsx($spreadsheet))->save('php://output');
-        }, $filename, [
-            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        ]);
+        return $this->exporter->downloadXlsxResponse($exam);
     }
 }

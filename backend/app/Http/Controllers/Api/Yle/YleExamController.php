@@ -97,6 +97,10 @@ class YleExamController extends Controller
     {
         $exam = YleExam::findOrFail($id);
 
+        if ($request->user()->cannot('update', $exam)) {
+            return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền sửa bài thi này.'], 403);
+        }
+
         $request->validate([
             'name' => 'nullable|string|max:255',
         ]);
@@ -122,7 +126,11 @@ class YleExamController extends Controller
 
     public function updateQuestion(Request $request, int $id): JsonResponse
     {
-        $question = YleQuestion::findOrFail($id);
+        $question = YleQuestion::with('part.exam')->findOrFail($id);
+
+        if ($request->user()->cannot('update', $question)) {
+            return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền sửa câu hỏi này.'], 403);
+        }
 
         $request->validate([
             'correct_answer' => 'nullable|string|max:255',

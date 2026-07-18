@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\TogglableResource;
 use App\Filament\Resources\UserResource\Pages;
 use App\Models\User;
 use Filament\Forms;
@@ -13,9 +14,25 @@ use Illuminate\Support\Facades\Hash;
 
 class UserResource extends Resource
 {
+    use TogglableResource;
+
     protected static ?string $model = User::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-users';
+
+    protected static ?string $navigationGroup = 'Hệ thống';
+
+    protected static ?int $navigationSort = 10;
+
+    protected static function navigationToggleKey(): ?string
+    {
+        return 'navigation.users';
+    }
+
+    protected static function navigationToggleDefault(): bool
+    {
+        return true;
+    }
 
     public static function form(Form $form): Form
     {

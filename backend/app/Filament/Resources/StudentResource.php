@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\TogglableResource;
 use App\Filament\Resources\StudentResource\Pages;
 use App\Models\Student;
 use Filament\Forms;
@@ -12,9 +13,25 @@ use Filament\Tables\Table;
 
 class StudentResource extends Resource
 {
+    use TogglableResource;
+
     protected static ?string $model = Student::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+
+    protected static ?string $navigationGroup = 'Quản lý lớp';
+
+    protected static ?int $navigationSort = 2;
+
+    protected static function navigationToggleKey(): ?string
+    {
+        return 'navigation.students';
+    }
+
+    protected static function navigationToggleDefault(): bool
+    {
+        return true;
+    }
 
     public static function form(Form $form): Form
     {

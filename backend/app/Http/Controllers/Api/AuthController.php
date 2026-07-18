@@ -7,10 +7,10 @@ use App\Models\SchoolClass;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
-use PHPOpenSourceSaver\JWTAuth\Exceptions\JWTException;
-use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
+use Illuminate\Support\Facades\Password;
 
 class AuthController extends Controller
 {
@@ -21,10 +21,12 @@ class AuthController extends Controller
             'password' => 'required',
         ]);
 
-        $credentials = $request->only('email', 'password');
-
-        if (!$token = JWTAuth::attempt($credentials)) {
-            Log::warning('Login failed', ['email' => $request->email]);
+        if (! Auth::guard('web')->validate($request->only('email', 'password'))) {
+            Log::warning('Login failed', [
+                'email' => $request->email,
+                'ip' => $request->ip(),
+                'user_agent' => $request->userAgent(),
+            ]);
 
             return response()->json([
                 'error' => 'UNAUTHORIZED',
@@ -32,9 +34,13 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $user = auth()->user();
+        $user = User::where('email', $request->email)->firstOrFail();
+        $token = $user->createToken('login')->plainTextToken;
 
-        Log::info('Login successful', ['user_id' => $user->id, 'email' => $user->email]);
+        Log::info('Login successful', [
+            'user_id' => $user->id,
+            'ip' => $request->ip(),
+        ]);
 
         return $this->respondWithToken($token, $user);
     }
@@ -44,7 +50,7 @@ class AuthController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:6',
+            'password' => 'required|min:8|regex:/[a-z]/|regex:/[A-Z]/|regex:/[0-9]/|regex:/[@$!%*?&]/',
             'class_code' => 'nullable|string|max:20|exists:school_classes,code',
         ]);
 
@@ -63,17 +69,19 @@ class AuthController extends Controller
             }
         }
 
-        $token = JWTAuth::fromUser($user);
+        $token = $user->createToken('registration')->plainTextToken;
 
-        Log::info('User registered', ['user_id' => $user->id, 'email' => $user->email]);
+        Log::info('User registered', [
+            'user_id' => $user->id,
+            'ip' => $request->ip(),
+        ]);
 
         return $this->respondWithToken($token, $user, 201);
     }
 
-    public function me(): JsonResponse
+    public function me(Request $request): JsonResponse
     {
-        $user = auth()->user()->load('classes');
-        $user->load('roles');
+        $user = $request->user()->load('classes', 'roles');
 
         return response()->json([
             'user' => [
@@ -89,40 +97,90 @@ class AuthController extends Controller
 
     public function logout(Request $request): JsonResponse
     {
-        try {
-            JWTAuth::invalidate(JWTAuth::getToken());
-
-            Log::info('User logged out', ['user_id' => auth()->id()]);
-
-            return response()->json(['message' => 'Đã đăng xuất.']);
-        } catch (JWTException $e) {
-            return response()->json(['message' => 'Đã đăng xuất.'], 200);
+        $token = $request->bearerToken();
+        if ($token && $request->user()) {
+            $tokenId = (int) explode('|', $token)[0];
+            $request->user()->tokens()->where('id', $tokenId)->delete();
         }
+
+        Log::info('User logged out', ['user_id' => $request->user()?->id]);
+
+        return response()->json(['message' => 'Đã đăng xuất.']);
     }
 
-    public function refresh(): JsonResponse
+    public function refresh(Request $request): JsonResponse
     {
-        try {
-            $token = JWTAuth::refresh(JWTAuth::getToken());
-            $user = auth()->user();
-
-            return $this->respondWithToken($token, $user);
-        } catch (JWTException $e) {
+        $user = $request->user();
+        if (! $user) {
             return response()->json([
                 'error' => 'TOKEN_INVALID',
                 'message' => 'Token không hợp lệ hoặc đã hết hạn.',
             ], 401);
         }
+
+        $tokenId = null;
+        $token = $request->bearerToken();
+        if ($token) {
+            $tokenId = (int) explode('|', $token)[0];
+        }
+
+        $newToken = $user->createToken('refresh')->plainTextToken;
+
+        if ($tokenId) {
+            $user->tokens()->where('id', $tokenId)->delete();
+        }
+
+        return $this->respondWithToken($newToken, $user);
+    }
+
+    public function forgotPassword(Request $request): JsonResponse
+    {
+        $request->validate(['email' => 'required|email']);
+
+        $status = Password::sendResetLink($request->only('email'));
+
+        return response()->json([
+            'message' => $status === Password::RESET_LINK_SENT
+                ? 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được link đặt lại mật khẩu.'
+                : 'Nếu email tồn tại trong hệ thống, bạn sẽ nhận được link đặt lại mật khẩu.',
+        ]);
+    }
+
+    public function resetPassword(Request $request): JsonResponse
+    {
+        $request->validate([
+            'token' => 'required',
+            'email' => 'required|email',
+            'password' => 'required|min:8|regex:/[a-z]/|regex:/[A-Z]/|regex:/[0-9]/|regex:/[@$!%*?&]/|confirmed',
+        ]);
+
+        $status = Password::reset(
+            $request->only('email', 'password', 'password_confirmation', 'token'),
+            function (User $user, string $password) {
+                $user->forceFill(['password' => Hash::make($password)])->save();
+            }
+        );
+
+        if ($status !== Password::PASSWORD_RESET) {
+            return response()->json([
+                'error' => 'RESET_FAILED',
+                'message' => 'Token không hợp lệ hoặc đã hết hạn.',
+            ], 422);
+        }
+
+        Log::info('Password reset', ['email' => $request->email, 'ip' => $request->ip()]);
+
+        return response()->json(['message' => 'Đặt lại mật khẩu thành công.']);
     }
 
     protected function respondWithToken(string $token, ?User $user = null, int $status = 200): JsonResponse
     {
-        $ttl = config('jwt.ttl', 60);
+        $expirationMinutes = config('sanctum.expiration', 43200); // default 30 days in minutes
 
         $data = [
             'access_token' => $token,
             'token_type' => 'bearer',
-            'expires_in' => $ttl * 60,
+            'expires_in' => $expirationMinutes * 60,
         ];
 
         if ($user) {

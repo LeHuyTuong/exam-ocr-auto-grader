@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\TogglableResource;
 use App\Filament\Resources\YleExamResource\Pages;
 use App\Models\Yle\YleExam;
 use Filament\Forms;
@@ -12,9 +13,25 @@ use Filament\Tables\Table;
 
 class YleExamResource extends Resource
 {
+    use TogglableResource;
+
     protected static ?string $model = YleExam::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-academic-cap';
+
+    protected static ?string $navigationGroup = 'YLE (Cambridge)';
+
+    protected static ?int $navigationSort = 20;
+
+    protected static function navigationToggleKey(): ?string
+    {
+        return 'navigation.yle_exams';
+    }
+
+    protected static function navigationToggleDefault(): bool
+    {
+        return false;
+    }
 
     protected static ?string $navigationLabel = 'YLE Exams';
 

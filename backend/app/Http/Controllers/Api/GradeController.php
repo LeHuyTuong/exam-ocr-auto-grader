@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\Grade;
+use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Services\FuzzyMatchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
 class GradeController extends Controller
@@ -41,8 +43,10 @@ class GradeController extends Controller
         ]);
 
         $classId = $request->integer('class_id');
+        $schoolClass = SchoolClass::findOrFail($classId);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: grades.store', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
@@ -114,7 +118,8 @@ class GradeController extends Controller
     {
         $grade = Grade::findOrFail($id);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $grade->class_id)->exists()) {
+        if ($request->user()->cannot('update', $grade)) {
+            Log::warning('Access denied: grades.update', ['user_id' => $request->user()->id, 'class_id' => $grade->class_id, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền sửa điểm này.'], 403);
         }
 
@@ -152,8 +157,10 @@ class GradeController extends Controller
 
         $exam = Exam::findOrFail($request->integer('exam_id'));
         $classId = $request->integer('class_id', $exam->class_id);
+        $schoolClass = SchoolClass::findOrFail($classId);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: grades.index', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem điểm lớp này.'], 403);
         }
 

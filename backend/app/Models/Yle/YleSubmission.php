@@ -5,12 +5,15 @@ namespace App\Models\Yle;
 use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\User;
+use App\Support\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class YleSubmission extends Model
 {
+    use Auditable;
+
     protected $fillable = [
         'yle_exam_id',
         'class_id',
@@ -64,5 +67,17 @@ class YleSubmission extends Model
     public function answers(): HasMany
     {
         return $this->hasMany(YleAnswer::class, 'yle_submission_id');
+    }
+
+    protected function getAuditAttributes(): array
+    {
+        return [
+            'student_id' => $this->student_id,
+            'status' => $this->status,
+            'auto_score' => $this->auto_score,
+            'manual_score' => $this->manual_score,
+            'total_score' => $this->total_score,
+            'class_id' => $this->class_id,
+        ];
     }
 }

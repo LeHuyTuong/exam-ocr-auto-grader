@@ -1,6 +1,5 @@
 <?php
 
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Route;
@@ -30,6 +29,23 @@ Route::get('/__deploy', function (Request $request) {
     if (is_file($zipPath)) {
         $zip = new \ZipArchive();
         if ($zip->open($zipPath) === true) {
+            // Zip Slip protection: validate each entry's destination path
+            $targetDir = realpath(base_path());
+            for ($i = 0; $i < $zip->numFiles; $i++) {
+                $entryPath = $zip->getNameIndex($i);
+                $destPath = base_path($entryPath);
+                $destDir = dirname($destPath);
+                // Ensure parent directory exists and is within base_path
+                if (! is_dir($destDir)) {
+                    mkdir($destDir, 0755, true);
+                }
+                $realDest = realpath($destDir);
+                $withinBase = $realDest === $targetDir || str_starts_with($realDest, $targetDir.DIRECTORY_SEPARATOR);
+                if ($realDest === false || ! $withinBase) {
+                    $zip->close();
+                    abort(400, 'Invalid zip entry path');
+                }
+            }
             $zip->extractTo(base_path());
             $zip->close();
             @unlink($zipPath);
@@ -48,30 +64,17 @@ Route::get('/__deploy', function (Request $request) {
     Artisan::call('db:seed', ['--class' => 'RolePermissionSeeder', '--force' => true]);
     $result['seed'] = Artisan::output();
 
+    Artisan::call('db:seed', ['--class' => 'SettingsSeeder', '--force' => true]);
+    $result['seed_settings'] = Artisan::output();
+
     return response()->json(['status' => 'done', 'detail' => $result]);
 });
 
 /*
 |--------------------------------------------------------------------------
-| Dọn user thừa trên production — CHẠY MỘT LẦN RỒI XÓA ROUTE NÀY
+| Dọn user thừa trên production — ĐÃ XÓA SAU SECURITY AUDIT 2026-07-18
 |--------------------------------------------------------------------------
-| Xóa mọi user KHÔNG PHẢI admin@chamthi.com / coa@chamthi.com (1 admin
-| trùng do bug seeder cũ + các email tự đăng ký lúc test). Bảo vệ bằng
-| cùng DEPLOY_TOKEN với /__deploy.
+| Route này đã được xóa vì lý do bảo mật: endpoint web-accessible với
+| quyền xóa dữ liệu + token qua GET query parameter.
 */
-Route::get('/__cleanup-users', function (Request $request) {
-    $expected = (string) config('deploy.token');
-    abort_if($expected === '', 403);
-    abort_unless(hash_equals($expected, (string) $request->query('token')), 403);
 
-    $keep = ['admin@chamthi.com', 'coa@chamthi.com'];
-    $toDelete = User::whereNotIn('email', $keep)->get();
-    $deletedEmails = $toDelete->pluck('email')->all();
-    User::whereNotIn('email', $keep)->each(fn ($u) => $u->delete());
-
-    return response()->json([
-        'status' => 'done',
-        'deleted_users' => $deletedEmails,
-        'remaining_users' => User::pluck('email')->all(),
-    ]);
-});

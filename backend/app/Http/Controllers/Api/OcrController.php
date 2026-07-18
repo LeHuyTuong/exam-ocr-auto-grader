@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
+use App\Models\SchoolClass;
 use App\Services\CloudinaryService;
 use App\Services\FuzzyMatchService;
 use App\Services\Vision\GradedPaperExtractor;
@@ -30,8 +31,10 @@ class OcrController extends Controller
         ]);
 
         $classId = $request->integer('class_id');
+        $schoolClass = SchoolClass::findOrFail($classId);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: ocr.extract', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
@@ -99,8 +102,10 @@ class OcrController extends Controller
 
         $classId = $request->integer('class_id');
         $mode = $request->input('mode');
+        $schoolClass = SchoolClass::findOrFail($classId);
 
-        if (! $request->user()->isAdmin() && ! $request->user()->classes()->where('class_id', $classId)->exists()) {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: ocr.extract', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 

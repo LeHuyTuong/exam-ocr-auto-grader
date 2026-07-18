@@ -3,12 +3,15 @@
 namespace App\Models\Yle;
 
 use App\Models\User;
+use App\Support\Auditable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class YleExam extends Model
 {
+    use Auditable;
+
     protected $fillable = [
         'level',
         'skill',
@@ -31,5 +34,16 @@ class YleExam extends Model
     public function submissions(): HasMany
     {
         return $this->hasMany(YleSubmission::class, 'yle_exam_id');
+    }
+
+    protected function getAuditAttributes(): array
+    {
+        return [
+            'name' => $this->name,
+            'level' => $this->level,
+            'skill' => $this->skill,
+            'total_marks' => $this->total_marks,
+            'total_pages' => $this->total_pages,
+        ];
     }
 }

@@ -2,22 +2,39 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Exports\GradeExporter;
+use App\Filament\Actions\ExportExamGradesAction;
+use App\Filament\Concerns\TogglableResource;
 use App\Filament\Resources\GradeResource\Pages;
 use App\Models\Grade;
+use App\Support\SkillAssessment;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
-use Filament\Tables\Actions\ExportAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
 class GradeResource extends Resource
 {
+    use TogglableResource;
+
     protected static ?string $model = Grade::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+
+    protected static ?string $navigationGroup = 'Quản lý lớp';
+
+    protected static ?int $navigationSort = 4;
+
+    protected static function navigationToggleKey(): ?string
+    {
+        return 'navigation.grades';
+    }
+
+    protected static function navigationToggleDefault(): bool
+    {
+        return true;
+    }
 
     protected static ?string $navigationLabel = 'Điểm';
 
@@ -69,9 +86,9 @@ class GradeResource extends Resource
                 TextColumn::make('class.code')
                     ->label('Mã lớp')
                     ->sortable(),
-                TextColumn::make('exam.date')
-                    ->label('Ngày thi')
-                    ->date()
+                TextColumn::make('exam.name')
+                    ->label('Bài thi')
+                    ->searchable()
                     ->sortable(),
                 TextColumn::make('total_correct')
                     ->label('Đúng')
@@ -81,6 +98,13 @@ class GradeResource extends Resource
                     ->label('Điểm')
                     ->numeric(2)
                     ->sortable(),
+                TextColumn::make('weak_skills')
+                    ->label('Kỹ năng cần cải thiện')
+                    ->getStateUsing(fn (Grade $record): string => SkillAssessment::weakSkillsText($record->sub_scores))
+                    ->placeholder('—')
+                    ->color('danger')
+                    ->limit(40)
+                    ->toggleable(),
                 TextColumn::make('status')
                     ->label('Trạng thái')
                     ->badge()
@@ -96,7 +120,6 @@ class GradeResource extends Resource
             ->filters([])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\ViewAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -104,9 +127,7 @@ class GradeResource extends Resource
                 ]),
             ])
             ->headerActions([
-                ExportAction::make()
-                    ->label('Xuất Excel')
-                    ->exporter(GradeExporter::class),
+                ExportExamGradesAction::headerAction(),
             ]);
     }
 

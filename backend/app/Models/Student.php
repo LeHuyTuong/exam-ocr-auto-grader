@@ -34,4 +34,13 @@ class Student extends Model
     {
         return $this->hasMany(Grade::class, 'student_id');
     }
+
+    protected function getAuditAttributes(): array
+    {
+        return [
+            'full_name' => $this->full_name,
+            'normalized_name' => $this->normalized_name,
+            'class_id' => $this->class_id,
+        ];
+    }
 }

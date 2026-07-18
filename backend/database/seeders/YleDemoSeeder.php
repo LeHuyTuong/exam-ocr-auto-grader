@@ -13,12 +13,13 @@ class YleDemoSeeder extends Seeder
 {
     public function run(): void
     {
-        $admin = User::where('role', 'admin')->first() ?? User::factory()->create([
-            'name' => 'Admin',
-            'email' => 'admin@example.com',
-            'role' => 'admin',
-            'password' => bcrypt('password'),
-        ]);
+        $adminEmail = env('SEED_ADMIN_EMAIL', '');
+        $admin = $adminEmail ? User::where('email', $adminEmail)->first() : null;
+
+        if (! $admin) {
+            $this->command->warn('Skipping YLE demo seed: no admin user found. Run DatabaseSeeder first or set SEED_ADMIN_EMAIL.');
+            return;
+        }
 
         $template = YleTemplates::get('starters', 'listening');
         if (! $template) {

@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use App\Support\Auditable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Grade extends Model
 {
-    use HasFactory;
+    use Auditable, HasFactory;
 
     protected $fillable = [
         'exam_id',
@@ -52,5 +53,17 @@ class Grade extends Model
     public function confirmer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'confirmed_by');
+    }
+
+    protected function getAuditAttributes(): array
+    {
+        return [
+            'total_correct' => $this->total_correct,
+            'score' => $this->score,
+            'status' => $this->status,
+            'student_id' => $this->student_id,
+            'class_id' => $this->class_id,
+            'exam_id' => $this->exam_id,
+        ];
     }
 }

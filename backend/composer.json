@@ -12,7 +12,6 @@
         "laravel/framework": "^11.31",
         "laravel/sanctum": "^4.3",
         "laravel/tinker": "^2.9",
-        "php-open-source-saver/jwt-auth": "^2.2",
         "phpoffice/phpspreadsheet": "^5.9",
         "spatie/laravel-permission": "^6.0"
     },

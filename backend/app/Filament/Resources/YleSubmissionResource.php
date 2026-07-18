@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Concerns\TogglableResource;
 use App\Filament\Exports\YleSubmissionExporter;
 use App\Filament\Resources\YleSubmissionResource\Pages;
 use App\Models\Yle\YleAnswer;
@@ -15,9 +16,25 @@ use Filament\Tables\Table;
 
 class YleSubmissionResource extends Resource
 {
+    use TogglableResource;
+
     protected static ?string $model = YleSubmission::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
+
+    protected static ?string $navigationGroup = 'YLE (Cambridge)';
+
+    protected static ?int $navigationSort = 21;
+
+    protected static function navigationToggleKey(): ?string
+    {
+        return 'navigation.yle_submissions';
+    }
+
+    protected static function navigationToggleDefault(): bool
+    {
+        return false;
+    }
 
     protected static ?string $navigationLabel = 'YLE Kết quả';
 

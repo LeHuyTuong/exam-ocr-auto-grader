@@ -3,7 +3,10 @@
 namespace App\Services;
 
 use App\Models\Exam;
+use App\Support\SkillAssessment;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class GradeExcelExporter
 {
@@ -52,8 +55,17 @@ class GradeExcelExporter
                 $sheet->setCellValue([3 + $j, $row], $subScores[$key] ?? null);
             }
 
-            $sheet->setCellValue([9, $row], $grade->score);
-            // Cột 10-13 (nhận xét/tính cách) cố ý để trống cho giáo viên tự ghi.
+            // Cột TỔNG (max = 50): tổng 6 kỹ năng khi có sub_scores, fallback score.
+            $total = SkillAssessment::totalFromSubScores($subScores) ?? $grade->score;
+            $sheet->setCellValue([9, $row], $total);
+
+            // Cột 10: tự tính các kỹ năng cần cải thiện theo ngưỡng 9/9/9/4/4/9
+            // (tương đương TEXTJOIN trong công thức Excel của giáo viên).
+            // Rỗng khi đạt hết hoặc khi chưa có điểm thành phần (bài đếm-câu-đúng).
+            $sheet->setCellValue([10, $row], SkillAssessment::weakSkillsText($subScores));
+
+            // Cột 11-13 (NHẬN XÉT / Nhóm tính cách / Nhận xét khi làm việc nhóm)
+            // cố ý để trống cho giáo viên tự ghi.
         }
 
         foreach (range('A', 'M') as $col) {
@@ -61,5 +73,28 @@ class GradeExcelExporter
         }
 
         return $spreadsheet;
+    }
+
+    /**
+     * Xuất file Excel theo template 13 cột và trả StreamedResponse để tải về.
+     * Dùng chung cho API (ExamController) và nút "Xuất Excel" trong admin Filament.
+     */
+    public function downloadXlsxResponse(Exam $exam, ?string $filename = null): StreamedResponse
+    {
+        $spreadsheet = $this->export($exam);
+
+        if ($filename === null) {
+            $code = $exam->class?->code ?? 'class';
+            $safeName = str_replace(['/', '\\', ' '], ['-', '-', '_'], (string) $exam->name);
+            $filename = 'Diem_'.$code.'_'.$safeName.'_'.now()->format('Y-m-d').'.xlsx';
+        }
+
+        $writer = new Xlsx($spreadsheet);
+
+        return response()->streamDownload(function () use ($writer) {
+            $writer->save('php://output');
+        }, $filename, [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
     }
 }

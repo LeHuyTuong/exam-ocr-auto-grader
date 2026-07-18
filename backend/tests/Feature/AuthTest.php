@@ -23,7 +23,7 @@ class AuthTest extends TestCase
         $response = $this->postJson('/api/auth/register', [
             'name' => 'New Teacher',
             'email' => 'newteacher@chamthi.com',
-            'password' => 'secret123',
+            'password' => 'Secret123!',
         ]);
 
         $response->assertStatus(201)
@@ -41,13 +41,13 @@ class AuthTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'teacher@chamthi.com',
-            'password' => Hash::make('secret123'),
+            'password' => Hash::make('Secret123!'),
         ]);
         $user->assignRole('teacher');
 
         $response = $this->postJson('/api/auth/login', [
             'email' => 'teacher@chamthi.com',
-            'password' => 'secret123',
+            'password' => 'Secret123!',
         ]);
 
         $response->assertStatus(200)
@@ -63,7 +63,7 @@ class AuthTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'teacher@chamthi.com',
-            'password' => Hash::make('secret123'),
+            'password' => Hash::make('Secret123!'),
         ]);
         $user->assignRole('teacher');
 
@@ -80,7 +80,7 @@ class AuthTest extends TestCase
     {
         $response = $this->postJson('/api/auth/login', [
             'email' => 'nonexistent@chamthi.com',
-            'password' => 'secret123',
+            'password' => 'Secret123!',
         ]);
 
         $response->assertStatus(401)
@@ -98,13 +98,13 @@ class AuthTest extends TestCase
     public function test_authenticated_user_can_get_me(): void
     {
         $user = User::factory()->create([
-            'password' => Hash::make('secret123'),
+            'password' => Hash::make('Secret123!'),
         ]);
         $user->assignRole('teacher');
 
         $loginResponse = $this->postJson('/api/auth/login', [
             'email' => $user->email,
-            'password' => 'secret123',
+            'password' => 'Secret123!',
         ]);
 
         $token = $loginResponse->json('access_token');
@@ -120,13 +120,13 @@ class AuthTest extends TestCase
     public function test_authenticated_user_can_logout(): void
     {
         $user = User::factory()->create([
-            'password' => Hash::make('secret123'),
+            'password' => Hash::make('Secret123!'),
         ]);
         $user->assignRole('teacher');
 
         $loginResponse = $this->postJson('/api/auth/login', [
             'email' => $user->email,
-            'password' => 'secret123',
+            'password' => 'Secret123!',
         ]);
 
         $token = $loginResponse->json('access_token');
@@ -148,13 +148,13 @@ class AuthTest extends TestCase
     public function test_token_can_be_refreshed(): void
     {
         $user = User::factory()->create([
-            'password' => Hash::make('secret123'),
+            'password' => Hash::make('Secret123!'),
         ]);
         $user->assignRole('teacher');
 
         $loginResponse = $this->postJson('/api/auth/login', [
             'email' => $user->email,
-            'password' => 'secret123',
+            'password' => 'Secret123!',
         ]);
 
         $token = $loginResponse->json('access_token');

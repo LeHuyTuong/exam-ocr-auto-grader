@@ -5,7 +5,6 @@ namespace Tests;
 use App\Models\User;
 use Database\Seeders\RolePermissionSeeder;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use PHPOpenSourceSaver\JWTAuth\Facades\JWTAuth;
 
 abstract class TestCase extends BaseTestCase
 {
@@ -14,10 +13,19 @@ abstract class TestCase extends BaseTestCase
         $this->seed(RolePermissionSeeder::class);
     }
 
+    protected function sanctumToken(User $user): string
+    {
+        return $user->createToken('test')->plainTextToken;
+    }
+
+    protected function authHeader(User $user): array
+    {
+        return ['Authorization' => 'Bearer ' . $this->sanctumToken($user)];
+    }
+
     protected function jwtAs(User $user): array
     {
-        $token = JWTAuth::fromUser($user);
-        return ['Authorization' => 'Bearer ' . $token];
+        return $this->authHeader($user);
     }
 
     protected function jwtAsTeacher(array $data = []): User
