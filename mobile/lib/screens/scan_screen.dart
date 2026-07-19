@@ -14,6 +14,7 @@ import 'grade_list_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   final int classId;
+  final int examId;
   final String className;
   final int totalQuestions;
   final int maxScore;
@@ -21,6 +22,7 @@ class ScanScreen extends StatefulWidget {
   const ScanScreen({
     super.key,
     required this.classId,
+    required this.examId,
     required this.className,
     required this.totalQuestions,
     required this.maxScore,
@@ -217,7 +219,7 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
 
       final result = await _examService.extractImage(
         image.path,
-        widget.classId,
+        widget.examId,
         mlkitHint,
       );
 

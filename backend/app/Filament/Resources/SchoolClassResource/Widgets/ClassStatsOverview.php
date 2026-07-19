@@ -22,7 +22,7 @@ class ClassStatsOverview extends StatsOverviewWidget
             : ($trend >= 0 ? "+{$trend}%" : "{$trend}%");
         $trendDesc = $trend === null
             ? 'Chưa đủ 2 bài đã chấm để so sánh'
-            : ($trend >= 0 ? "Tăng {$trend}% so với lần chấm trước" : 'Giảm '.abs((float) $trend).'% so với lần chấm trước');
+            : ($trend >= 0 ? "Tăng {$trend}% so với bài thi trước" : 'Giảm '.abs((float) $trend).'% so với bài thi trước');
         $trendColor = $trend === null ? 'gray' : ($trend >= 0 ? 'success' : 'danger');
 
         return [

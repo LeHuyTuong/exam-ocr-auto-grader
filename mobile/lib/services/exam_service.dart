@@ -20,9 +20,9 @@ class ExamService {
     return res.data as Map<String, dynamic>;
   }
 
-  /// Mỗi lớp chỉ có đúng 1 exam (config chấm bài), không còn phân biệt theo
-  /// ngày — endpoint backend vẫn tên "/exams/today" nhưng nay trả về exam
-  /// duy nhất của lớp, dùng chung cho mọi lần chấm.
+  /// Exam đang hoạt động (active) của lớp — dùng cho "Đổi kiểu chấm" (update
+  /// tại chỗ qua storeToday) và các nơi chỉ cần đề active. Để list/tạo đề mới
+  /// (nhiều đề/lớp) dùng getClassExams/createExam bên dưới.
   Future<Map<String, dynamic>?> getClassExam(int classId) async {
     try {
       final res = await _api.get('/exams/today', params: {'class_id': classId});
@@ -44,10 +44,39 @@ class ExamService {
     return res.data as Map<String, dynamic>;
   }
 
+  /// Danh sách đề của 1 lớp (mọi đề, kể cả đã khoá), sắp created_at desc — cho
+  /// mobile chọn đề trước khi quét / xem lại đề cũ.
+  Future<List<Map<String, dynamic>>> getClassExams(int classId) async {
+    final res = await _api.get('/classes/$classId/exams');
+    final list = res.data['exams'] as List? ?? [];
+    return list.cast<Map<String, dynamic>>();
+  }
+
+  /// Tạo đề mới cho lớp — đề mới thành đề active, mọi đề cũ bị khoá (backend
+  /// tự xử lý trong 1 transaction). Trả về exam vừa tạo (kèm id, isActive).
+  Future<Map<String, dynamic>> createExam(
+    int classId, {
+    String? name,
+    required int totalQuestions,
+    int? maxScore,
+    String gradingMode = 'counting',
+  }) async {
+    final data = <String, dynamic>{
+      'total_questions': totalQuestions,
+      'max_score': maxScore ?? totalQuestions,
+      'grading_mode': gradingMode,
+    };
+    if (name != null && name.trim().isNotEmpty) {
+      data['name'] = name.trim();
+    }
+    final res = await _api.post('/classes/$classId/exams', data: data);
+    return res.data as Map<String, dynamic>;
+  }
+
   Future<ExtractResult> extractImage(
-      String imagePath, int classId, String? mlkitHint) async {
+      String imagePath, int examId, String? mlkitHint) async {
     final fields = <String, dynamic>{
-      'class_id': classId.toString(),
+      'exam_id': examId.toString(),
     };
     if (mlkitHint != null) {
       fields['mlkit_hint'] = mlkitHint;
@@ -99,9 +128,9 @@ class ExamService {
   /// Task 1/2 of the graded-paper flow — a tight crop of the pencil-written
   /// name line. Returns the exam id to reuse for the scores crop.
   Future<GradedNameResult> extractGradedName(
-      String imagePath, int classId, String? mlkitHint) async {
+      String imagePath, int examId, String? mlkitHint) async {
     final fields = <String, dynamic>{
-      'class_id': classId.toString(),
+      'exam_id': examId.toString(),
       'mode': 'name',
     };
     if (mlkitHint != null) {
@@ -114,9 +143,9 @@ class ExamService {
 
   /// Task 2/2 — a tight crop of the red-ink score strip at the end of the paper.
   Future<GradedScoresResult> extractGradedScores(
-      String imagePath, int classId, String? mlkitHint) async {
+      String imagePath, int examId, String? mlkitHint) async {
     final fields = <String, dynamic>{
-      'class_id': classId.toString(),
+      'exam_id': examId.toString(),
       'mode': 'scores',
     };
     if (mlkitHint != null) {

@@ -16,6 +16,7 @@ class ExamFactory extends Factory
             'total_questions' => fake()->randomElement([20, 30, 40, 50]),
             'max_score' => 10,
             'created_by' => User::factory(),
+            'is_active' => true,
         ];
     }
 }

@@ -8,42 +8,52 @@ use App\Models\SchoolClass;
  * Thống kê cho 1 lớp — dùng cho trang chi tiết lớp, badge xu hướng ở list,
  * widget dashboard lớp.
  *
- * Lưu ý mô hình dữ liệu: "1 lớp = 1 exam liên tục" (unique class_id trên exams).
- * Mỗi lần chấm/regrade tạo grade mới (có created_at). Vậy "lần chấm thi" được
- * định nghĩa là một ĐỢT CHẤM theo ngày (group grades theo created_at date), chứ
- * KHÔNG phải theo exam.
+ * 2 khái niệm thống kê khác nhau (đừng nhầm):
+ * - XU HƯỚNG THEO TỪNG ĐỀ: averageScoreByExam() gộp điểm theo exam_id — mỗi đề
+ *   đã có grade = 1 điểm trên biểu đồ / 1 "lần" so sánh xu hướng. Dùng cho
+ *   ClassScoreTrendChart, latestAverage(), trendPercent(), trendSummary().
+ * - BỨC TRANH TỔNG QUAN: averageScore(), skillAverages(), weakStudents() gộp
+ *   xuyên suốt mọi đề (lấy grade mới nhất mỗi học sinh / mọi grade) — phản ánh
+ *   tình hình hiện tại của lớp chứ không phân biệt theo từng đề riêng biệt.
  */
 class ClassStatsService
 {
     public function __construct(private SchoolClass $class) {}
 
     /**
-     * Các đợt chấm theo ngày — mỗi phần tử = 1 ngày có grade, kèm điểm TB.
-     * Sắp xếp tăng dần theo ngày (cũ -> mới).
+     * Điểm TB theo từng đề của lớp — mỗi phần tử = 1 đề đã có grade, kèm điểm TB
+     * các grade của đề đó. Sắp xếp theo created_at của đề (cũ -> mới). Bỏ qua đề
+     * chưa có grade nào (không đẩy điểm null vào chuỗi) — áp dụng cho cả biểu đồ
+     * xu hướng lẫn latestAverage()/trendPercent() (so sánh 2 đề gần nhất đã có điểm).
      *
-     * @return list<array{date:string,count:int,avg:?float}>
+     * @return list<array{examId:int,examName:string,count:int,avg:float}>
      */
-    public function gradingSessionsByDate(): array
+    public function averageScoreByExam(): array
     {
-        $grades = $this->class->grades()
-            ->whereNotNull('created_at')
+        $exams = $this->class->exams()
             ->orderBy('created_at')
-            ->get(['score', 'created_at']);
+            ->get(['id', 'name']);
 
-        $grouped = $grades->groupBy(fn ($g) => $g->created_at?->format('Y-m-d'));
+        $averages = $this->class->grades()
+            ->selectRaw('exam_id, COUNT(*) as count, AVG(score) as avg')
+            ->whereIn('exam_id', $exams->pluck('id'))
+            ->groupBy('exam_id')
+            ->get()
+            ->keyBy('exam_id');
 
         $sessions = [];
-        foreach ($grouped as $date => $items) {
-            if ($date === null || $items->isEmpty()) {
-                continue;
+        foreach ($exams as $exam) {
+            $row = $averages->get($exam->id);
+            if ($row === null) {
+                continue; // đề chưa có grade — bỏ qua
             }
             $sessions[] = [
-                'date' => $date,
-                'count' => $items->count(),
-                'avg' => round((float) $items->avg('score'), 2),
+                'examId' => $exam->id,
+                'examName' => $exam->name,
+                'count' => (int) $row->count,
+                'avg' => round((float) $row->avg, 2),
             ];
         }
-        usort($sessions, fn ($a, $b) => strcmp($a['date'], $b['date']));
 
         return $sessions;
     }
@@ -86,10 +96,10 @@ class ClassStatsService
         return $this->class->grades()->count();
     }
 
-    /** Điểm TB của đợt chấm gần nhất (có grade). */
+    /** Điểm TB của đề gần nhất đã có grade. */
     public function latestAverage(): ?float
     {
-        $sessions = $this->gradingSessionsByDate();
+        $sessions = $this->averageScoreByExam();
         if (empty($sessions)) {
             return null;
         }
@@ -98,12 +108,12 @@ class ClassStatsService
     }
 
     /**
-     * % thay đổi điểm TB: đợt chấm gần nhất vs đợt chấm ngay trước đó.
-     * null khi chưa có đủ 2 đợt chấm (chưa thể so sánh) hoặc đợt trước = 0.
+     * % thay đổi điểm TB: đề gần nhất vs đề ngay trước đó (đều phải có grade).
+     * null khi chưa có đủ 2 đề đã chấm (chưa thể so sánh) hoặc đề trước = 0.
      */
     public function trendPercent(): ?float
     {
-        $sessions = $this->gradingSessionsByDate();
+        $sessions = $this->averageScoreByExam();
         if (count($sessions) < 2) {
             return null;
         }
@@ -117,14 +127,14 @@ class ClassStatsService
     }
 
     /**
-     * Tóm tắt xu hướng: latest = điểm TB đợt chấm mới nhất,
-     * trend = % thay đổi vs đợt chấm liền trước (null nếu < 2 đợt hoặc prev = 0).
+     * Tóm tắt xu hướng: latest = điểm TB đề gần nhất đã có grade,
+     * trend = % thay đổi vs đề liền trước (null nếu < 2 đề đã chấm hoặc prev = 0).
      *
      * @return array{latest:?float,trend:?float}
      */
     public function trendSummary(): array
     {
-        $sessions = $this->gradingSessionsByDate();
+        $sessions = $this->averageScoreByExam();
         if (empty($sessions)) {
             return ['latest' => null, 'trend' => null];
         }

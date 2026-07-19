@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\Exam;
 use App\Models\SchoolClass;
 use App\Services\GradeExcelExporter;
+use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -27,7 +28,7 @@ class ExamController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $exam = Exam::where('class_id', $classId)->first();
+        $exam = Exam::where('class_id', $classId)->where('is_active', true)->first();
 
         if (! $exam) {
             return response()->json([
@@ -64,7 +65,7 @@ class ExamController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $existing = Exam::where('class_id', $classId)->first();
+        $existing = Exam::where('class_id', $classId)->where('is_active', true)->first();
 
         if ($existing) {
             // Lớp đã có bài: cập nhật cấu hình tại chỗ (nhất là grading_mode) để
@@ -105,6 +106,83 @@ class ExamController extends Controller
                 'totalQuestions' => $exam->total_questions,
                 'maxScore' => $exam->max_score,
                 'gradingMode' => $exam->grading_mode,
+            ],
+        ], 201);
+    }
+
+    /**
+     * Danh sách đề của 1 lớp (mọi đề, kể cả đã khoá), sắp created_at desc — cho
+     * mobile chọn đề trước khi quét / xem lại đề cũ.
+     */
+    public function index(Request $request, SchoolClass $schoolClass): JsonResponse
+    {
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: exams.index', ['user_id' => $request->user()->id, 'class_id' => $schoolClass->id, 'ip' => $request->ip()]);
+            return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
+        }
+
+        $exams = $schoolClass->exams()
+            ->orderBy('created_at', 'desc')
+            ->get(['id', 'name', 'grading_mode', 'total_questions', 'max_score', 'is_active', 'created_at']);
+
+        return response()->json([
+            'exams' => $exams->map(fn (Exam $e) => [
+                'id' => $e->id,
+                'name' => $e->name,
+                'gradingMode' => $e->grading_mode,
+                'totalQuestions' => $e->total_questions,
+                'maxScore' => $e->max_score,
+                'isActive' => $e->is_active,
+                'createdAt' => $e->created_at,
+            ]),
+        ]);
+    }
+
+    /**
+     * Tạo đề mới cho lớp — đề mới thành đề active duy nhất, mọi đề cũ bị khoá.
+     * Khi client không gửi name, server tự sinh "Bài thi {code} - {d/m/Y}" (luôn
+     * tính ngày ở server, không tin name client gửi có mang ngày hay không).
+     */
+    public function store(Request $request, SchoolClass $schoolClass): JsonResponse
+    {
+        $request->validate([
+            'name' => 'nullable|string|max:255',
+            'total_questions' => 'required|integer|min:1|max:500',
+            'max_score' => 'nullable|integer|min:1|max:100',
+            'grading_mode' => 'nullable|in:counting,graded',
+        ]);
+
+        if ($request->user()->cannot('view', $schoolClass)) {
+            Log::warning('Access denied: exams.store', ['user_id' => $request->user()->id, 'class_id' => $schoolClass->id, 'ip' => $request->ip()]);
+            return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
+        }
+
+        $name = $request->filled('name')
+            ? $request->input('name')
+            : 'Bài thi '.$schoolClass->code.' - '.Carbon::now()->format('d/m/Y');
+
+        $exam = Exam::create([
+            'class_id' => $schoolClass->id,
+            'name' => $name,
+            'total_questions' => $request->integer('total_questions'),
+            'max_score' => $request->input('max_score', $request->integer('total_questions')),
+            'grading_mode' => $request->input('grading_mode', 'counting'),
+            'created_by' => $request->user()->id,
+            'is_active' => true,
+        ]);
+
+        // Khoá mọi đề cũ của lớp, đề vừa tạo thành đề active duy nhất. Method tự
+        // bọc DB::transaction nên không cần bọc thêm ở đây.
+        $exam->activateExclusively();
+
+        return response()->json([
+            'exam' => [
+                'id' => $exam->id,
+                'name' => $exam->name,
+                'totalQuestions' => $exam->total_questions,
+                'maxScore' => $exam->max_score,
+                'gradingMode' => $exam->grading_mode,
+                'isActive' => $exam->is_active,
             ],
         ], 201);
     }

@@ -57,9 +57,8 @@ class ExamResource extends Resource
                     ])
                     ->default('counting')
                     ->required(),
-                Forms\Components\TextInput::make('created_by')
-                    ->required()
-                    ->numeric(),
+                Forms\Components\Hidden::make('created_by')
+                    ->default(fn () => auth()->id()),
             ]);
     }
 
@@ -72,6 +71,11 @@ class ExamResource extends Resource
                     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->searchable(),
+                Tables\Columns\TextColumn::make('is_active')
+                    ->label('Trạng thái')
+                    ->badge()
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Đang chấm' : 'Đã khoá')
+                    ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
                 Tables\Columns\TextColumn::make('total_questions')
                     ->numeric()
                     ->sortable(),

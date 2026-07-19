@@ -50,6 +50,25 @@ class GradeController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
+        $examId = $request->integer('exam_id');
+        $exam = Exam::findOrFail($examId);
+
+        // Đề đã khoá (không active) — không cho chấm thêm. Kiểm sau quyền lớp để
+        // người không thuộc lớp nhận FORBIDDEN chứ không suy ra được đề đang khoá.
+        if (! $exam->is_active) {
+            return response()->json([
+                'error' => 'EXAM_LOCKED',
+                'message' => 'Đề thi này đã khoá, không thể chấm thêm.',
+            ], 403);
+        }
+
+        // Client gửi exam_id và class_id độc lập — trước giờ an toàn nhờ unique
+        // (1 lớp = 1 exam), giờ nhiều đề/lớp phải cross-check để tránh gửi exam_id
+        // của lớp khác kèm class_id lớp hiện tại.
+        abort_unless($exam->class_id === $classId, 422, 'exam_id không khớp lớp.');
+
+        // Chỉ sau khi qua hết quyền + khoá + cross-check mới tạo Student mới —
+        // tránh tạo học sinh "mồ côi" rồi mới bị từ chối vì exam sai/khoá.
         $studentId = $request->input('student_id');
 
         if (! $studentId && $request->boolean('create_new_student')) {
@@ -69,8 +88,6 @@ class GradeController extends Controller
                 'message' => 'Thiếu student_id hoặc create_new_student.',
             ], 422);
         }
-
-        $examId = $request->integer('exam_id');
 
         // Không chặn chấm lại vĩnh viễn (1 học sinh có thể có nhiều bài kiểm
         // tra theo thời gian) — chỉ chặn chấm trùng trong 5 phút để tránh lỗi
@@ -116,11 +133,20 @@ class GradeController extends Controller
 
     public function update(Request $request, int $id): JsonResponse
     {
-        $grade = Grade::findOrFail($id);
+        $grade = Grade::with('exam')->findOrFail($id);
 
         if ($request->user()->cannot('update', $grade)) {
             Log::warning('Access denied: grades.update', ['user_id' => $request->user()->id, 'class_id' => $grade->class_id, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền sửa điểm này.'], 403);
+        }
+
+        // Đề đã khoá — không cho sửa điểm. Kiểm sau quyền (cannot('update')) để
+        // người không thuộc lớp nhận FORBIDDEN chứ không suy ra được đề đang khoá.
+        if (! $grade->exam->is_active) {
+            return response()->json([
+                'error' => 'EXAM_LOCKED',
+                'message' => 'Đề thi này đã khoá, không thể chấm thêm.',
+            ], 403);
         }
 
         $request->validate([

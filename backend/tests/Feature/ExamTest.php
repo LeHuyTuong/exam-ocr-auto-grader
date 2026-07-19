@@ -230,4 +230,77 @@ class ExamTest extends TestCase
 
         $response->assertStatus(403);
     }
+
+    public function test_list_class_exams_sorted_by_created_at_desc(): void
+    {
+        $class = SchoolClass::factory()->create();
+        $this->user->classes()->attach($class->id);
+
+        $old = Exam::factory()->create(['class_id' => $class->id, 'name' => 'Cũ', 'created_at' => now()->subDays(10), 'is_active' => false]);
+        $new = Exam::factory()->create(['class_id' => $class->id, 'name' => 'Mới', 'created_at' => now(), 'is_active' => true]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->getJson('/api/classes/'.$class->id.'/exams');
+
+        $response->assertStatus(200)
+            ->assertJsonCount(2, 'exams')
+            ->assertJsonPath('exams.0.id', $new->id) // mới trước (desc)
+            ->assertJsonPath('exams.1.id', $old->id)
+            ->assertJsonPath('exams.0.isActive', true)
+            ->assertJsonPath('exams.1.isActive', false);
+    }
+
+    public function test_list_class_exams_forbidden_for_non_owner(): void
+    {
+        $class = SchoolClass::factory()->create();
+        // $this->user không attach class → không có quyền.
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->getJson('/api/classes/'.$class->id.'/exams');
+
+        $response->assertStatus(403);
+    }
+
+    public function test_create_new_exam_deactivates_previous_active(): void
+    {
+        $class = SchoolClass::factory()->create();
+        $this->user->classes()->attach($class->id);
+
+        $first = Exam::factory()->create(['class_id' => $class->id, 'is_active' => true]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/classes/'.$class->id.'/exams', [
+                'total_questions' => 40,
+                'max_score' => 10,
+                'grading_mode' => 'counting',
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('exam.isActive', true);
+
+        // Đề cũ bị khoá, đề mới active.
+        $this->assertSame(false, Exam::find($first->id)->is_active);
+        $newExam = Exam::where('class_id', $class->id)->where('is_active', true)->first();
+        $this->assertNotNull($newExam);
+        $this->assertNotSame($first->id, $newExam->id);
+        $this->assertSame(40, $newExam->total_questions);
+
+        // Bất biến: đúng 1 đề active.
+        $this->assertSame(1, Exam::where('class_id', $class->id)->where('is_active', true)->count());
+    }
+
+    public function test_create_new_exam_defaults_name_with_date(): void
+    {
+        $class = SchoolClass::factory()->create(['code' => 'TA-201']);
+        $this->user->classes()->attach($class->id);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/classes/'.$class->id.'/exams', [
+                'total_questions' => 50,
+            ]);
+
+        $response->assertStatus(201);
+        $exam = Exam::find($response->json('exam.id'));
+        $this->assertStringStartsWith('Bài thi TA-201 - ', $exam->name);
+    }
 }

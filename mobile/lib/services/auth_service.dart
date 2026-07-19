@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import '../models/user.dart';
+import '../utils/error_utils.dart';
 import 'api_client.dart';
 
 class AuthService extends ChangeNotifier {
@@ -43,7 +44,7 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       _loading = false;
       notifyListeners();
-      return 'Đăng ký thất bại. Email có thể đã tồn tại.';
+      return friendlyError(e);
     }
   }
 
@@ -89,7 +90,7 @@ class AuthService extends ChangeNotifier {
     } catch (e) {
       _loading = false;
       notifyListeners();
-      return 'Đăng nhập thất bại. Kiểm tra email/mật khẩu.';
+      return friendlyError(e);
     }
   }
 

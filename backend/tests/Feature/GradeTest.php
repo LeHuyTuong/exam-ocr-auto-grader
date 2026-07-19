@@ -228,4 +228,74 @@ class GradeTest extends TestCase
 
         $response->assertStatus(201);
     }
+
+    public function test_store_grade_locked_exam_returns_403(): void
+    {
+        $this->exam->update(['is_active' => false]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/grades', [
+                'exam_id' => $this->exam->id,
+                'class_id' => $this->class->id,
+                'student_id' => $this->student->id,
+                'total_correct' => 40,
+                'score' => 8.0,
+                'ocr_raw_name' => 'Nguyen Van A',
+            ]);
+
+        $response->assertStatus(403)->assertJson(['error' => 'EXAM_LOCKED']);
+    }
+
+    public function test_update_grade_locked_exam_returns_403(): void
+    {
+        $grade = Grade::factory()->create([
+            'exam_id' => $this->exam->id,
+            'class_id' => $this->class->id,
+            'student_id' => $this->student->id,
+            'score' => 8.0,
+        ]);
+        $this->exam->update(['is_active' => false]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->putJson('/api/grades/'.$grade->id, [
+                'total_correct' => 45,
+                'score' => 9.0,
+            ]);
+
+        $response->assertStatus(403)->assertJson(['error' => 'EXAM_LOCKED']);
+    }
+
+    public function test_index_and_export_still_work_for_locked_exam(): void
+    {
+        Grade::factory()->create(['exam_id' => $this->exam->id, 'class_id' => $this->class->id]);
+        $this->exam->update(['is_active' => false]);
+
+        // Xem điểm đề khoá vẫn được.
+        $this->withHeaders($this->jwtAs($this->user))
+            ->getJson('/api/grades?exam_id='.$this->exam->id)
+            ->assertStatus(200);
+
+        // Xuất Excel đề khoá vẫn được.
+        $this->withHeaders($this->jwtAs($this->user))
+            ->get('/api/exams/'.$this->exam->id.'/export')
+            ->assertStatus(200);
+    }
+
+    public function test_store_grade_rejects_exam_id_from_other_class(): void
+    {
+        $otherClass = SchoolClass::factory()->create();
+        $otherExam = Exam::factory()->create(['class_id' => $otherClass->id]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/grades', [
+                'exam_id' => $otherExam->id,
+                'class_id' => $this->class->id,
+                'student_id' => $this->student->id,
+                'total_correct' => 40,
+                'score' => 8.0,
+                'ocr_raw_name' => 'Nguyen Van A',
+            ]);
+
+        $response->assertStatus(422);
+    }
 }

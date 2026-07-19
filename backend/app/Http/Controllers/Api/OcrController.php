@@ -4,7 +4,6 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Exam;
-use App\Models\SchoolClass;
 use App\Services\CloudinaryService;
 use App\Services\FuzzyMatchService;
 use App\Services\Vision\GradedPaperExtractor;
@@ -26,25 +25,24 @@ class OcrController extends Controller
     {
         $request->validate([
             'image' => 'required|image|max:10240',
-            'class_id' => 'required|exists:school_classes,id',
+            'exam_id' => 'required|exists:exams,id',
             'mlkit_hint' => 'nullable|string|max:500',
         ]);
 
-        $classId = $request->integer('class_id');
-        $schoolClass = SchoolClass::findOrFail($classId);
+        $exam = Exam::with('class')->findOrFail($request->integer('exam_id'));
+        $schoolClass = $exam->class;
+        $classId = $schoolClass->id;
 
         if ($request->user()->cannot('view', $schoolClass)) {
             Log::warning('Access denied: ocr.extract', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $exam = Exam::where('class_id', $classId)->first();
-
-        if (! $exam) {
+        if (! $exam->is_active) {
             return response()->json([
-                'error' => 'NOT_FOUND',
-                'message' => 'Chưa có bài thi cho lớp này. Hãy tạo exam trước.',
-            ], 404);
+                'error' => 'EXAM_LOCKED',
+                'message' => 'Đề thi này đã khoá, không thể chấm thêm.',
+            ], 403);
         }
 
         $imageBytes = file_get_contents($request->file('image')->getRealPath());
@@ -95,27 +93,26 @@ class OcrController extends Controller
     {
         $request->validate([
             'image' => 'required|image|max:10240',
-            'class_id' => 'required|exists:school_classes,id',
+            'exam_id' => 'required|exists:exams,id',
             'mode' => 'required|in:name,scores',
             'mlkit_hint' => 'nullable|string|max:500',
         ]);
 
-        $classId = $request->integer('class_id');
+        $exam = Exam::with('class')->findOrFail($request->integer('exam_id'));
+        $schoolClass = $exam->class;
+        $classId = $schoolClass->id;
         $mode = $request->input('mode');
-        $schoolClass = SchoolClass::findOrFail($classId);
 
         if ($request->user()->cannot('view', $schoolClass)) {
             Log::warning('Access denied: ocr.extract', ['user_id' => $request->user()->id, 'class_id' => $classId, 'ip' => $request->ip()]);
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền truy cập lớp này.'], 403);
         }
 
-        $exam = Exam::where('class_id', $classId)->first();
-
-        if (! $exam) {
+        if (! $exam->is_active) {
             return response()->json([
-                'error' => 'NOT_FOUND',
-                'message' => 'Chưa có bài thi cho lớp này. Hãy tạo exam trước.',
-            ], 404);
+                'error' => 'EXAM_LOCKED',
+                'message' => 'Đề thi này đã khoá, không thể chấm thêm.',
+            ], 403);
         }
 
         $imageBytes = file_get_contents($request->file('image')->getRealPath());

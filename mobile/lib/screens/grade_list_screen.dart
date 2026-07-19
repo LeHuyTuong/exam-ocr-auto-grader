@@ -12,7 +12,12 @@ import '../widgets/empty_state.dart';
 import '../widgets/loading_view.dart';
 
 class GradeListScreen extends StatefulWidget {
-  const GradeListScreen({super.key});
+  /// Khi được mở từ màn chọn đề (đề khoá → chỉ xem/xuất), truyền sẵn classId +
+  /// examId để tự chọn luôn, giáo viên không cần bấm lại.
+  final int? classId;
+  final int? examId;
+
+  const GradeListScreen({super.key, this.classId, this.examId});
 
   @override
   State<GradeListScreen> createState() => _GradeListScreenState();
@@ -23,13 +28,14 @@ class _GradeListScreenState extends State<GradeListScreen> {
   final _scrollController = ScrollController();
   List<SchoolClass> _classes = [];
   SchoolClass? _selectedClass;
+  List<Map<String, dynamic>> _exams = [];
+  int? _selectedExamId;
   List<Grade> _grades = [];
   bool _loadingGrades = false;
   bool _loadingMore = false;
   bool _exporting = false;
   int _currentPage = 1;
   int _lastPage = 1;
-  int? _examId;
 
   @override
   void initState() {
@@ -64,46 +70,88 @@ class _GradeListScreenState extends State<GradeListScreen> {
                   .toList() ??
               [];
         });
+        // Mở từ màn chọn đề (có classId truyền sẵn) → tự chọn lớp đó luôn.
+        if (widget.classId != null) {
+          final preset = _classes.cast<SchoolClass?>().firstWhere(
+                (c) => c?.id == widget.classId,
+                orElse: () => null,
+              );
+          if (preset != null) {
+            setState(() => _selectedClass = preset);
+            await _loadExams();
+          }
+        }
       }
     } catch (_) {}
   }
 
-  Future<void> _loadGrades() async {
+  /// Khi đổi lớp (hoặc mở có classId truyền sẵn) — tải danh sách đề của lớp,
+  /// tự chọn đề (ưu tiên examId truyền sẵn, không thì đề active, không thì đề
+  /// đầu) rồi tải điểm.
+  Future<void> _loadExams() async {
     if (_selectedClass == null) return;
     setState(() {
       _loadingGrades = true;
       _currentPage = 1;
       _grades = [];
-      _examId = null;
+      _exams = [];
+      _selectedExamId = null;
     });
 
     try {
-      final exam = await _service.getClassExam(_selectedClass!.id);
-      if (exam != null) {
-        final examId =
-            (exam['exam'] as Map<String, dynamic>?)?['id'] as int? ?? 0;
-        final result = await _service.getGrades(examId);
-        final meta = result['meta'] as Map<String, dynamic>?;
-        final rawGrades =
-            List<Map<String, dynamic>>.from(result['grades'] as List? ?? []);
-        _grades = rawGrades.map((g) => Grade.fromJson(g)).toList();
-        _currentPage = meta?['current_page'] as int? ?? 1;
-        _lastPage = meta?['last_page'] as int? ?? 1;
-        _examId = examId;
+      final exams = await _service.getClassExams(_selectedClass!.id);
+      if (!mounted) return;
+      setState(() => _exams = exams);
+
+      int? pick;
+      if (widget.examId != null && exams.any((e) => e['id'] == widget.examId)) {
+        pick = widget.examId;
+      } else {
+        final active = exams.firstWhere(
+          (e) => e['isActive'] == true,
+          orElse: () => exams.isEmpty ? <String, dynamic>{} : exams.first,
+        );
+        pick = active['id'] as int?;
+      }
+      if (pick != null) {
+        setState(() => _selectedExamId = pick);
+        await _loadGradesForExam();
+        return;
       }
     } catch (_) {}
 
     if (mounted) setState(() => _loadingGrades = false);
   }
 
+  Future<void> _loadGradesForExam() async {
+    if (_selectedClass == null || _selectedExamId == null) return;
+    setState(() {
+      _loadingGrades = true;
+      _currentPage = 1;
+      _grades = [];
+    });
+
+    try {
+      final result = await _service.getGrades(_selectedExamId!);
+      final meta = result['meta'] as Map<String, dynamic>?;
+      final rawGrades =
+          List<Map<String, dynamic>>.from(result['grades'] as List? ?? []);
+      _grades = rawGrades.map((g) => Grade.fromJson(g)).toList();
+      _currentPage = meta?['current_page'] as int? ?? 1;
+      _lastPage = meta?['last_page'] as int? ?? 1;
+    } catch (_) {}
+
+    if (mounted) setState(() => _loadingGrades = false);
+  }
+
   Future<void> _exportExcel() async {
-    if (_examId == null || _exporting) return;
+    if (_selectedExamId == null || _exporting) return;
     setState(() => _exporting = true);
 
     try {
-      final bytes = await _service.downloadExcel(_examId!);
+      final bytes = await _service.downloadExcel(_selectedExamId!);
       final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/Diem_${_selectedClass?.code}_$_examId.xlsx');
+      final file = File('${dir.path}/Diem_${_selectedClass?.code}_$_selectedExamId.xlsx');
       await file.writeAsBytes(bytes);
 
       await SharePlus.instance.share(ShareParams(
@@ -122,23 +170,18 @@ class _GradeListScreenState extends State<GradeListScreen> {
   }
 
   Future<void> _loadMoreGrades() async {
-    if (_selectedClass == null) return;
+    if (_selectedClass == null || _selectedExamId == null) return;
     setState(() => _loadingMore = true);
 
     try {
-      final exam = await _service.getClassExam(_selectedClass!.id);
-      if (exam != null) {
-        final examId =
-            (exam['exam'] as Map<String, dynamic>?)?['id'] as int? ?? 0;
-        final result =
-            await _service.getGrades(examId, page: _currentPage + 1);
-        final meta = result['meta'] as Map<String, dynamic>?;
-        final rawGrades =
-            List<Map<String, dynamic>>.from(result['grades'] as List? ?? []);
-        _grades.addAll(rawGrades.map((g) => Grade.fromJson(g)));
-        _currentPage = meta?['current_page'] as int? ?? 1;
-        _lastPage = meta?['last_page'] as int? ?? 1;
-      }
+      final result =
+          await _service.getGrades(_selectedExamId!, page: _currentPage + 1);
+      final meta = result['meta'] as Map<String, dynamic>?;
+      final rawGrades =
+          List<Map<String, dynamic>>.from(result['grades'] as List? ?? []);
+      _grades.addAll(rawGrades.map((g) => Grade.fromJson(g)));
+      _currentPage = meta?['current_page'] as int? ?? 1;
+      _lastPage = meta?['last_page'] as int? ?? 1;
     } catch (_) {}
 
     if (mounted) setState(() => _loadingMore = false);
@@ -163,7 +206,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
         title: const Text('Danh sách điểm'),
         centerTitle: true,
         actions: [
-          if (_examId != null)
+          if (_selectedExamId != null)
             IconButton(
               icon: _exporting
                   ? const SizedBox(
@@ -194,11 +237,41 @@ class _GradeListScreenState extends State<GradeListScreen> {
                       ))
                   .toList(),
               onChanged: (c) {
-                setState(() => _selectedClass = c);
-                _loadGrades();
+                setState(() {
+                  _selectedClass = c;
+                  _exams = [];
+                  _selectedExamId = null;
+                  _grades = [];
+                });
+                if (c != null) _loadExams();
               },
             ),
           ),
+          if (_selectedClass != null)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: DropdownButtonFormField<int>(
+                initialValue: _selectedExamId,
+                decoration: const InputDecoration(
+                  labelText: 'Chọn đề',
+                  prefixIcon: Icon(Icons.assignment_outlined),
+                ),
+                items: _exams
+                    .map((e) => DropdownMenuItem(
+                          value: e['id'] as int,
+                          child: Text(
+                            '${e['name'] as String? ?? 'Bài thi'}'
+                            '${e['isActive'] == true ? ' (Đang chấm)' : ' (Đã khoá)'}',
+                          ),
+                        ))
+                    .toList(),
+                onChanged: (id) {
+                  if (id == null) return;
+                  setState(() => _selectedExamId = id);
+                  _loadGradesForExam();
+                },
+              ),
+            ),
           Expanded(
             child: _loadingGrades
                 ? const LoadingView(message: 'Đang tải điểm...')
@@ -213,7 +286,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
                             message: 'Chưa có điểm nào',
                           )
                         : RefreshIndicator(
-                            onRefresh: _loadGrades,
+                            onRefresh: _loadGradesForExam,
                             child: ListView.builder(
                               controller: _scrollController,
                               padding:

@@ -7,6 +7,7 @@ import '../widgets/empty_state.dart';
 import '../widgets/error_view.dart';
 import '../widgets/loading_view.dart';
 import 'graded_scan_screen.dart';
+import 'grade_list_screen.dart';
 import 'scan_screen.dart';
 
 class ClassSelectScreen extends StatefulWidget {
@@ -56,45 +57,20 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
 
   Future<void> _selectClass(SchoolClass cls) async {
     try {
-      final exam = await _service.getClassExam(cls.id);
-      int totalQuestions;
-      int? maxScore;
-      String gradingMode;
-
-      if (exam == null) {
-        if (!mounted) return;
-        final result = await showDialog<Map<String, dynamic>>(
-          context: context,
-          builder: (ctx) => _ExamDialog(classCode: cls.code),
-        );
-        if (result == null) return;
-        totalQuestions = result['totalQuestions'] as int? ?? 50;
-        maxScore = result['maxScore'] as int?;
-        gradingMode = result['gradingMode'] as String? ?? 'counting';
-        await _service.createClassExam(cls.id, totalQuestions, maxScore,
-            gradingMode: gradingMode);
-      } else {
-        final examData = exam['exam'] as Map<String, dynamic>?;
-        totalQuestions = examData?.tryGet('totalQuestions') as int? ?? 50;
-        maxScore = examData?.tryGet('maxScore') as int?;
-        gradingMode = examData?.tryGet('gradingMode') as String? ?? 'counting';
-      }
-
+      final exams = await _service.getClassExams(cls.id);
       if (!mounted) return;
 
-      final className = '${cls.code} - ${cls.name}';
+      if (exams.isEmpty) {
+        // Lớp chưa có đề nào — mở dialog tạo đề đầu tiên rồi vào màn quét.
+        await _createFirstExamAndScan(cls);
+        return;
+      }
+
+      // Có ít nhất 1 đề — mở màn chọn đề (active → quét, khoá → xem/xuất).
+      if (!mounted) return;
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => gradingMode == 'graded'
-              ? GradedScanScreen(classId: cls.id, className: className)
-              : ScanScreen(
-                  classId: cls.id,
-                  className: className,
-                  totalQuestions: totalQuestions,
-                  maxScore: maxScore ?? totalQuestions,
-                ),
-        ),
+        MaterialPageRoute(builder: (_) => _ExamListScreen(cls: cls)),
       );
     } catch (e) {
       if (mounted) {
@@ -103,6 +79,55 @@ class _ClassSelectScreenState extends State<ClassSelectScreen> {
         );
       }
     }
+  }
+
+  /// Lớp chưa có đề: mở dialog → tạo đề đầu tiên → vào màn quét ngay.
+  Future<void> _createFirstExamAndScan(SchoolClass cls) async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => _ExamDialog(classCode: cls.code, showNameField: true),
+    );
+    if (result == null || !mounted) return;
+
+    final totalQuestions = result['totalQuestions'] as int? ?? 50;
+    final maxScore = result['maxScore'] as int?;
+    final gradingMode = result['gradingMode'] as String? ?? 'counting';
+    final name = result['name'] as String?;
+
+    final data = await _service.createExam(
+      cls.id,
+      name: name,
+      totalQuestions: totalQuestions,
+      maxScore: maxScore,
+      gradingMode: gradingMode,
+    );
+    if (!mounted) return;
+
+    final examData = data['exam'] as Map<String, dynamic>?;
+    final examId = examData?['id'] as int? ?? 0;
+    _pushScanScreen(cls, examId, totalQuestions, maxScore ?? totalQuestions,
+        gradingMode);
+  }
+
+  /// Vào màn quét theo gradingMode của đề đã chọn/tạo.
+  void _pushScanScreen(SchoolClass cls, int examId, int totalQuestions,
+      int maxScore, String gradingMode) {
+    final className = '${cls.code} - ${cls.name}';
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => gradingMode == 'graded'
+            ? GradedScanScreen(
+                classId: cls.id, examId: examId, className: className)
+            : ScanScreen(
+                classId: cls.id,
+                examId: examId,
+                className: className,
+                totalQuestions: totalQuestions,
+                maxScore: maxScore,
+              ),
+      ),
+    );
   }
 
   /// Đổi kiểu chấm cho lớp đã có bài — mở lại hộp thoại (điền sẵn cấu hình
@@ -286,12 +311,210 @@ extension _MapTryGet on Map<String, dynamic> {
   dynamic tryGet(String key) => containsKey(key) ? this[key] : null;
 }
 
+/// Màn hình con (đẩy từ ClassSelectScreen khi lớp đã có đề): danh sách đề của 1
+/// lớp — đề active bấm vào để chấm, đề khoá bấm vào để xem/xuất. Có nút tạo đề mới.
+class _ExamListScreen extends StatefulWidget {
+  final SchoolClass cls;
+  const _ExamListScreen({required this.cls});
+
+  @override
+  State<_ExamListScreen> createState() => _ExamListScreenState();
+}
+
+class _ExamListScreenState extends State<_ExamListScreen> {
+  final _service = ExamService();
+  List<Map<String, dynamic>> _exams = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadExams();
+  }
+
+  Future<void> _loadExams() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final exams = await _service.getClassExams(widget.cls.id);
+      if (mounted) setState(() { _exams = exams; _loading = false; });
+    } catch (e) {
+      if (mounted) {
+        setState(() { _loading = false; _error = friendlyError(e); });
+      }
+    }
+  }
+
+  Future<void> _createNewExam() async {
+    final result = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) =>
+          _ExamDialog(classCode: widget.cls.code, showNameField: true),
+    );
+    if (result == null || !mounted) return;
+
+    try {
+      final data = await _service.createExam(
+        widget.cls.id,
+        name: result['name'] as String?,
+        totalQuestions: result['totalQuestions'] as int? ?? 50,
+        maxScore: result['maxScore'] as int?,
+        gradingMode: result['gradingMode'] as String? ?? 'counting',
+      );
+      if (!mounted) return;
+      // Tạo xong → vào màn quét luôn (đề mới là đề active).
+      final examData = data['exam'] as Map<String, dynamic>?;
+      final examId = examData?['id'] as int? ?? 0;
+      final totalQuestions = (examData?.tryGet('totalQuestions') as int?) ??
+          (result['totalQuestions'] as int? ?? 50);
+      final maxScore = (examData?.tryGet('maxScore') as int?) ??
+          (result['maxScore'] as int?) ?? totalQuestions;
+      final gradingMode = (examData?.tryGet('gradingMode') as String?) ??
+          (result['gradingMode'] as String? ?? 'counting');
+      _pushScan(examId, totalQuestions, maxScore, gradingMode);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
+  }
+
+  void _pushScan(int examId, int totalQuestions, int maxScore, String gradingMode) {
+    final className = '${widget.cls.code} - ${widget.cls.name}';
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => gradingMode == 'graded'
+            ? GradedScanScreen(
+                classId: widget.cls.id, examId: examId, className: className)
+            : ScanScreen(
+                classId: widget.cls.id,
+                examId: examId,
+                className: className,
+                totalQuestions: totalQuestions,
+                maxScore: maxScore,
+              ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('${widget.cls.code} - Chọn đề'),
+        centerTitle: true,
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: _createNewExam,
+        icon: const Icon(Icons.add),
+        label: const Text('Tạo đề mới'),
+      ),
+      body: _loading
+          ? const LoadingView(message: 'Đang tải danh sách đề...')
+          : _error != null
+              ? ErrorView(message: _error!, onRetry: _loadExams)
+              : _exams.isEmpty
+                  ? const EmptyState(
+                      icon: Icons.assignment_outlined,
+                      message: 'Chưa có đề nào.\nBấm "Tạo đề mới" để bắt đầu.',
+                    )
+                  : RefreshIndicator(
+                      onRefresh: _loadExams,
+                      child: ListView.builder(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        itemCount: _exams.length,
+                        itemBuilder: (context, i) {
+                          final e = _exams[i];
+                          final isActive = e['isActive'] == true;
+                          final examId = e['id'] as int? ?? 0;
+                          final name = e['name'] as String? ?? 'Bài thi';
+                          final gradingMode =
+                              e['gradingMode'] as String? ?? 'counting';
+                          final totalQuestions =
+                              e['totalQuestions'] as int? ?? 50;
+                          final maxScore =
+                              e['maxScore'] as int? ?? totalQuestions;
+                          return AppCard(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            onTap: () {
+                              if (isActive) {
+                                _pushScan(examId, totalQuestions, maxScore, gradingMode);
+                              } else {
+                                // Đề khoá → chỉ xem/xuất.
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => GradeListScreen(
+                                      classId: widget.cls.id,
+                                      examId: examId,
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            child: Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: isActive
+                                        ? theme.colorScheme.primaryContainer
+                                        : theme.colorScheme.surfaceContainerHighest,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Icon(
+                                    isActive ? Icons.assignment_turned_in : Icons.lock_outline,
+                                    color: isActive ? theme.colorScheme.primary : theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(name, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600)),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        gradingMode == 'graded' ? 'Unit Test đã chấm tay' : 'Đếm câu đúng',
+                                        style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Chip(
+                                  label: Text(
+                                    isActive ? 'Đang chấm' : 'Đã khoá',
+                                    style: TextStyle(fontSize: 11, color: isActive ? Colors.green : Colors.grey),
+                                  ),
+                                  visualDensity: VisualDensity.compact,
+                                  padding: EdgeInsets.zero,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+    );
+  }
+}
+
 class _ExamDialog extends StatefulWidget {
   final String classCode;
   final String? initialMode;
   final int? initialQuestions;
   final int? initialMaxScore;
   final String confirmLabel;
+  final bool showNameField;
 
   const _ExamDialog({
     required this.classCode,
@@ -299,6 +522,7 @@ class _ExamDialog extends StatefulWidget {
     this.initialQuestions,
     this.initialMaxScore,
     this.confirmLabel = 'Bắt đầu',
+    this.showNameField = false,
   });
 
   @override
@@ -308,6 +532,7 @@ class _ExamDialog extends StatefulWidget {
 enum _GradingMode { counting, graded }
 
 class _ExamDialogState extends State<_ExamDialog> {
+  late final TextEditingController _nameCtrl;
   late final TextEditingController _questionsCtrl;
   late final TextEditingController _maxScoreCtrl;
   late _GradingMode _mode;
@@ -318,6 +543,7 @@ class _ExamDialogState extends State<_ExamDialog> {
     _mode = widget.initialMode == 'graded'
         ? _GradingMode.graded
         : _GradingMode.counting;
+    _nameCtrl = TextEditingController();
     _questionsCtrl =
         TextEditingController(text: (widget.initialQuestions ?? 50).toString());
     _maxScoreCtrl = TextEditingController(
@@ -328,9 +554,15 @@ class _ExamDialogState extends State<_ExamDialog> {
 
   @override
   void dispose() {
+    _nameCtrl.dispose();
     _questionsCtrl.dispose();
     _maxScoreCtrl.dispose();
     super.dispose();
+  }
+
+  String? _nameResult() {
+    final t = _nameCtrl.text.trim();
+    return t.isEmpty ? null : t;
   }
 
   @override
@@ -338,7 +570,9 @@ class _ExamDialogState extends State<_ExamDialog> {
     final theme = Theme.of(context);
     return AlertDialog(
       title: Text(
-        'Chọn kiểu chấm — ${widget.classCode}',
+        widget.showNameField
+            ? 'Tạo đề mới — ${widget.classCode}'
+            : 'Chọn kiểu chấm — ${widget.classCode}',
         style: theme.textTheme.titleMedium,
       ),
       content: SingleChildScrollView(
@@ -346,6 +580,16 @@ class _ExamDialogState extends State<_ExamDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            if (widget.showNameField) ...[
+              TextField(
+                controller: _nameCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Tên đề (tuỳ chọn)',
+                  hintText: 'Để trống = tự sinh "Bài thi {mã lớp} - {ngày}"',
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
             RadioGroup<_GradingMode>(
               groupValue: _mode,
               onChanged: (v) => setState(() {
@@ -412,6 +656,7 @@ class _ExamDialogState extends State<_ExamDialog> {
                 'totalQuestions': maxScore,
                 'maxScore': maxScore,
                 'gradingMode': 'graded',
+                'name': _nameResult(),
               });
               return;
             }
@@ -427,6 +672,7 @@ class _ExamDialogState extends State<_ExamDialog> {
               'totalQuestions': q,
               'maxScore': int.tryParse(_maxScoreCtrl.text),
               'gradingMode': 'counting',
+              'name': _nameResult(),
             });
           },
           child: Text(widget.confirmLabel),

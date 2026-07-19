@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SchoolClassResource\RelationManagers;
 
 use App\Filament\Actions\ExportExamGradesAction;
+use App\Models\Exam;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -53,6 +54,11 @@ class ExamsRelationManager extends RelationManager
                     ->label('Bài thi')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('is_active')
+                    ->label('Trạng thái')
+                    ->badge()
+                    ->formatStateUsing(fn (bool $state): string => $state ? 'Đang chấm' : 'Đã khoá')
+                    ->color(fn (bool $state): string => $state ? 'success' : 'gray'),
                 TextColumn::make('grading_mode')
                     ->label('Kiểu chấm')
                     ->badge()
@@ -92,6 +98,15 @@ class ExamsRelationManager extends RelationManager
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('activate')
+                    ->label('Đặt làm đề đang hoạt động')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Đặt làm đề đang hoạt động')
+                    ->modalDescription('Đề này sẽ thành đề đang chấm. Mọi đề khác của lớp sẽ bị khoá (chỉ xem/xuất được, không chấm thêm).')
+                    ->visible(fn (Exam $record): bool => ! $record->is_active)
+                    ->action(fn (Exam $record) => $record->activateExclusively()),
                 ExportExamGradesAction::rowAction(),
             ])
             ->bulkActions([

@@ -14,24 +14,24 @@ class ClassStatsServiceTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_trend_percent_compares_latest_vs_previous_grading_session(): void
+    public function test_trend_percent_compares_latest_vs_previous_exam(): void
     {
-        // Mô hình: 1 lớp = 1 exam liên tục; mỗi lần chấm = 1 grade (theo created_at).
+        // Mô hình mới: 1 lớp có nhiều đề; xu hướng so sánh điểm TB 2 đề gần nhất.
         $class = SchoolClass::factory()->create();
         $student = Student::factory()->create(['class_id' => $class->id]);
-        $exam = Exam::factory()->create(['class_id' => $class->id]);
 
-        // Đợt chấm cũ: điểm 6.0
+        // Đề cũ (created_at sớm hơn): điểm TB 6.0
+        $exam1 = Exam::factory()->create(['class_id' => $class->id, 'created_at' => now()->subDays(20)]);
         Grade::factory()->create([
-            'exam_id' => $exam->id, 'class_id' => $class->id,
+            'exam_id' => $exam1->id, 'class_id' => $class->id,
             'student_id' => $student->id, 'score' => 6.0,
-            'created_at' => now()->subDays(10),
         ]);
-        // Đợt chấm mới: điểm 9.0
+
+        // Đề mới: điểm TB 9.0
+        $exam2 = Exam::factory()->create(['class_id' => $class->id, 'created_at' => now()->subDays(2)]);
         Grade::factory()->create([
-            'exam_id' => $exam->id, 'class_id' => $class->id,
+            'exam_id' => $exam2->id, 'class_id' => $class->id,
             'student_id' => $student->id, 'score' => 9.0,
-            'created_at' => now()->subDays(2),
         ]);
 
         $svc = new ClassStatsService($class);
@@ -41,7 +41,7 @@ class ClassStatsServiceTest extends TestCase
         $this->assertSame(9.0, $svc->latestAverage());
     }
 
-    public function test_trend_percent_null_when_only_one_grading_session(): void
+    public function test_trend_percent_null_when_only_one_exam_graded(): void
     {
         $class = SchoolClass::factory()->create();
         $student = Student::factory()->create(['class_id' => $class->id]);
@@ -53,29 +53,53 @@ class ClassStatsServiceTest extends TestCase
 
         $svc = new ClassStatsService($class);
 
+        // Chỉ 1 đề đã chấm — chưa đủ 2 đề để so xu hướng.
         $this->assertNull($svc->trendPercent());
         $this->assertSame(8.0, $svc->latestAverage());
     }
 
-    public function test_negative_trend_when_score_drops(): void
+    public function test_negative_trend_when_score_drops_between_exams(): void
     {
         $class = SchoolClass::factory()->create();
         $student = Student::factory()->create(['class_id' => $class->id]);
-        $exam = Exam::factory()->create(['class_id' => $class->id]);
 
+        $exam1 = Exam::factory()->create(['class_id' => $class->id, 'created_at' => now()->subDays(20)]);
         Grade::factory()->create([
-            'exam_id' => $exam->id, 'class_id' => $class->id,
+            'exam_id' => $exam1->id, 'class_id' => $class->id,
             'student_id' => $student->id, 'score' => 10.0,
-            'created_at' => now()->subDays(10),
         ]);
+
+        $exam2 = Exam::factory()->create(['class_id' => $class->id, 'created_at' => now()]);
         Grade::factory()->create([
-            'exam_id' => $exam->id, 'class_id' => $class->id,
+            'exam_id' => $exam2->id, 'class_id' => $class->id,
             'student_id' => $student->id, 'score' => 8.0,
-            'created_at' => now(),
         ]);
 
         // 10 -> 8: (8-10)/10 * 100 = -20%
         $this->assertSame(-20.0, (new ClassStatsService($class))->trendPercent());
+    }
+
+    public function test_average_score_by_exam_skips_exams_with_no_grades(): void
+    {
+        $class = SchoolClass::factory()->create();
+        $student = Student::factory()->create(['class_id' => $class->id]);
+
+        // Đề 1 có grade.
+        $exam1 = Exam::factory()->create(['class_id' => $class->id, 'name' => 'KT tháng 1', 'created_at' => now()->subDays(10)]);
+        Grade::factory()->create([
+            'exam_id' => $exam1->id, 'class_id' => $class->id,
+            'student_id' => $student->id, 'score' => 7.0,
+        ]);
+
+        // Đề 2 mới tạo, chưa chấm ai — phải bị bỏ qua.
+        Exam::factory()->create(['class_id' => $class->id, 'name' => 'KT tháng 2', 'created_at' => now()]);
+
+        $sessions = (new ClassStatsService($class))->averageScoreByExam();
+
+        $this->assertCount(1, $sessions);
+        $this->assertSame($exam1->id, $sessions[0]['examId']);
+        $this->assertSame('KT tháng 1', $sessions[0]['examName']);
+        $this->assertSame(7.0, $sessions[0]['avg']);
     }
 
     public function test_weak_students_lists_those_with_skill_below_threshold(): void

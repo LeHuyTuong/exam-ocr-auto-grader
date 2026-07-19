@@ -10,13 +10,13 @@ class ClassScoreTrendChart extends LineChartWidget
 {
     public ?SchoolClass $record = null;
 
-    protected static ?string $heading = 'Điểm trung bình qua các đợt chấm';
+    protected static ?string $heading = 'Điểm trung bình qua từng bài thi';
 
     protected int|string|array $columnSpan = 'full';
 
     protected function getData(): array
     {
-        $sessions = (new ClassStatsService($this->record))->gradingSessionsByDate();
+        $sessions = (new ClassStatsService($this->record))->averageScoreByExam();
 
         return [
             'datasets' => [
@@ -28,7 +28,7 @@ class ClassScoreTrendChart extends LineChartWidget
                     'fill' => false,
                 ],
             ],
-            'labels' => array_map(fn ($s) => $s['date'], $sessions),
+            'labels' => array_map(fn ($s) => $s['examName'], $sessions),
         ];
     }
 }

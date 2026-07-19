@@ -18,11 +18,13 @@ import 'grade_list_screen.dart';
 /// on a full page.
 class GradedScanScreen extends StatefulWidget {
   final int classId;
+  final int examId;
   final String className;
 
   const GradedScanScreen({
     super.key,
     required this.classId,
+    required this.examId,
     required this.className,
   });
 
@@ -215,7 +217,7 @@ class _GradedScanScreenState extends State<GradedScanScreen>
       if (_step == _CropStep.name) {
         final result = await _examService.extractGradedName(
           image.path,
-          widget.classId,
+          widget.examId,
           mlkitHint,
         );
         if (!mounted) return;
@@ -234,7 +236,7 @@ class _GradedScanScreenState extends State<GradedScanScreen>
 
       final scoresResult = await _examService.extractGradedScores(
         image.path,
-        widget.classId,
+        widget.examId,
         mlkitHint,
       );
 

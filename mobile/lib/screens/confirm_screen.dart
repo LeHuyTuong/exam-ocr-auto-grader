@@ -50,6 +50,10 @@ class _ConfirmScreenState extends State<ConfirmScreen> {
       if (top.similarity > 0.7) {
         _selectedStudentId = top.studentId;
       }
+    } else {
+      // Không có gợi ý nào để chọn — chắc chắn là học sinh mới, không cần
+      // bắt giáo viên bấm thêm nút (nút đó cũng không hiện khi rỗng).
+      _createNew = true;
     }
   }
 
