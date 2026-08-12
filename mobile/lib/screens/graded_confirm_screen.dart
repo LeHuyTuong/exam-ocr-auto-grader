@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../models/graded_paper_result.dart';
 import '../services/exam_service.dart';
@@ -140,12 +139,9 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
       if (mounted) Navigator.pop(context, true);
     } catch (e) {
       setState(() => _saving = false);
-      final message = (e is DioException && e.response?.statusCode == 409)
-          ? 'Học sinh này đã có điểm cho bài thi này.'
-          : friendlyError(e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../models/extract_result.dart';
 import '../theme/app_colors.dart';
@@ -144,12 +143,9 @@ class _QuickConfirmSheetState extends State<QuickConfirmSheet> {
       if (mounted) setState(() => _saved = true);
     } catch (e) {
       setState(() => _saving = false);
-      final message = (e is DioException && e.response?.statusCode == 409)
-          ? 'Học sinh này đã có điểm cho bài thi này.'
-          : friendlyError(e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

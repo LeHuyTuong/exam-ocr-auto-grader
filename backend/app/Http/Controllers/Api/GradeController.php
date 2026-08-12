@@ -92,22 +92,15 @@ class GradeController extends Controller
             ], 422);
         }
 
-        // Không chặn chấm lại vĩnh viễn (1 học sinh có thể có nhiều bài kiểm
-        // tra theo thời gian) — chỉ chặn chấm trùng trong 5 phút để tránh lỗi
-        // thao tác (chụp/gửi nhầm 2 lần cùng 1 ảnh).
-        $recentDuplicate = Grade::where('exam_id', $examId)
+        // 1 học sinh chỉ có 1 điểm cho 1 đề: chấm lại (vd. đọc nhầm 47 muốn
+        // sửa thành 47.5) GHI ĐÈ lên điểm cũ chứ không tạo thêm dòng — trước
+        // đây tạo dòng mới khiến 1 học sinh bị lặp trong danh sách điểm/Excel,
+        // còn chấm trong vòng 5 phút thì bị chặn cứng không sửa được luôn.
+        $existingGrade = Grade::where('exam_id', $examId)
             ->where('student_id', $studentId)
-            ->where('created_at', '>=', now()->subMinutes(5))
-            ->exists();
+            ->first();
 
-        if ($recentDuplicate) {
-            return response()->json([
-                'error' => 'DUPLICATE',
-                'message' => 'Học sinh này vừa được chấm điểm trong 5 phút qua.',
-            ], 409);
-        }
-
-        $grade = Grade::create([
+        $attributes = [
             'exam_id' => $examId,
             'student_id' => $studentId,
             'class_id' => $classId,
@@ -120,7 +113,16 @@ class GradeController extends Controller
             'ocr_raw_name' => $request->input('ocr_raw_name'),
             'status' => 'confirmed',
             'confirmed_by' => $request->user()->id,
-        ]);
+        ];
+
+        if ($existingGrade) {
+            $existingGrade->update($attributes);
+            $grade = $existingGrade;
+            $statusCode = 200;
+        } else {
+            $grade = Grade::create($attributes);
+            $statusCode = 201;
+        }
 
         $grade->load('student');
 
@@ -131,7 +133,7 @@ class GradeController extends Controller
                 'totalCorrect' => $grade->total_correct,
                 'score' => (float) $grade->score,
             ],
-        ], 201);
+        ], $statusCode);
     }
 
     public function update(Request $request, int $id): JsonResponse

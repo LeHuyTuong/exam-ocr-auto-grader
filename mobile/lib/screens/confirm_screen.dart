@@ -1,4 +1,3 @@
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import '../models/extract_result.dart';
 import '../services/exam_service.dart';
@@ -102,12 +101,9 @@ class _ConfirmScreenState extends State<ConfirmScreen> {
       }
     } catch (e) {
       setState(() => _saving = false);
-      final message = (e is DioException && e.response?.statusCode == 409)
-          ? 'Học sinh này đã có điểm cho bài thi này.'
-          : friendlyError(e);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(message)),
+          SnackBar(content: Text(friendlyError(e))),
         );
       }
     }

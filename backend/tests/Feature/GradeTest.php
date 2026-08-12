@@ -221,12 +221,13 @@ class GradeTest extends TestCase
         $response->assertStatus(401);
     }
 
-    public function test_store_grade_blocks_duplicate_within_five_minutes(): void
+    public function test_store_grade_overrides_existing_within_five_minutes(): void
     {
-        Grade::factory()->create([
+        $existing = Grade::factory()->create([
             'exam_id' => $this->exam->id,
             'class_id' => $this->class->id,
             'student_id' => $this->student->id,
+            'score' => 47,
             'created_at' => now()->subMinutes(2),
         ]);
 
@@ -236,16 +237,25 @@ class GradeTest extends TestCase
                 'class_id' => $this->class->id,
                 'student_id' => $this->student->id,
                 'total_correct' => 40,
-                'score' => 8.0,
+                'score' => 47.5,
                 'ocr_raw_name' => 'Nguyen Van A',
             ]);
 
-        $response->assertStatus(409)->assertJson(['error' => 'DUPLICATE']);
+        // 200 (update), không phải 201 (create) — cùng dòng grade được ghi đè,
+        // không tạo thêm dòng mới cho học sinh này ở đề này.
+        $response->assertStatus(200)
+            ->assertJsonPath('grade.id', $existing->id)
+            ->assertJsonPath('grade.score', 47.5);
+
+        $this->assertSame(1, Grade::where('exam_id', $this->exam->id)
+            ->where('student_id', $this->student->id)
+            ->count());
+        $this->assertSame(47.5, $existing->refresh()->score);
     }
 
-    public function test_store_grade_allows_regrade_after_five_minutes(): void
+    public function test_store_grade_overrides_existing_after_five_minutes(): void
     {
-        Grade::factory()->create([
+        $existing = Grade::factory()->create([
             'exam_id' => $this->exam->id,
             'class_id' => $this->class->id,
             'student_id' => $this->student->id,
@@ -262,7 +272,10 @@ class GradeTest extends TestCase
                 'ocr_raw_name' => 'Nguyen Van A',
             ]);
 
-        $response->assertStatus(201);
+        $response->assertStatus(200)->assertJsonPath('grade.id', $existing->id);
+        $this->assertSame(1, Grade::where('exam_id', $this->exam->id)
+            ->where('student_id', $this->student->id)
+            ->count());
     }
 
     public function test_store_grade_locked_exam_returns_403(): void
