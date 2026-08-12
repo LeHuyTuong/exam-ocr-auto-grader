@@ -85,19 +85,21 @@ class GeminiGradedPaperExtractor implements GradedPaperExtractor
         return [
             'type' => 'OBJECT',
             'properties' => [
+                // NUMBER chứ không INTEGER: điểm chấm tay hay có nửa điểm
+                // ("7.5") — schema INTEGER buộc model làm tròn trước khi trả về.
                 'subScores' => [
                     'type' => 'OBJECT',
                     'properties' => [
-                        'vocabulary' => ['type' => 'INTEGER'],
-                        'grammar' => ['type' => 'INTEGER'],
-                        'listening' => ['type' => 'INTEGER'],
-                        'reading' => ['type' => 'INTEGER'],
-                        'writing' => ['type' => 'INTEGER'],
-                        'speaking' => ['type' => 'INTEGER'],
+                        'vocabulary' => ['type' => 'NUMBER'],
+                        'grammar' => ['type' => 'NUMBER'],
+                        'listening' => ['type' => 'NUMBER'],
+                        'reading' => ['type' => 'NUMBER'],
+                        'writing' => ['type' => 'NUMBER'],
+                        'speaking' => ['type' => 'NUMBER'],
                     ],
                     'required' => ['vocabulary', 'grammar', 'listening', 'reading', 'writing', 'speaking'],
                 ],
-                'totalScore' => ['type' => 'INTEGER'],
+                'totalScore' => ['type' => 'NUMBER'],
                 'confidence' => ['type' => 'NUMBER'],
             ],
             'required' => ['subScores', 'totalScore', 'confidence'],
@@ -137,14 +139,14 @@ class GeminiGradedPaperExtractor implements GradedPaperExtractor
 
         return new GradedPaperResult(
             studentName: null,
-            totalScore: (int) $data['totalScore'],
+            totalScore: round((float) $data['totalScore'], 2),
             subScores: [
-                'vocabulary' => (int) ($data['subScores']['vocabulary'] ?? 0),
-                'grammar' => (int) ($data['subScores']['grammar'] ?? 0),
-                'listening' => (int) ($data['subScores']['listening'] ?? 0),
-                'reading' => (int) ($data['subScores']['reading'] ?? 0),
-                'writing' => (int) ($data['subScores']['writing'] ?? 0),
-                'speaking' => (int) ($data['subScores']['speaking'] ?? 0),
+                'vocabulary' => round((float) ($data['subScores']['vocabulary'] ?? 0), 2),
+                'grammar' => round((float) ($data['subScores']['grammar'] ?? 0), 2),
+                'listening' => round((float) ($data['subScores']['listening'] ?? 0), 2),
+                'reading' => round((float) ($data['subScores']['reading'] ?? 0), 2),
+                'writing' => round((float) ($data['subScores']['writing'] ?? 0), 2),
+                'speaking' => round((float) ($data['subScores']['speaking'] ?? 0), 2),
             ],
             confidence: (float) $data['confidence'],
         );

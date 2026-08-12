@@ -11,6 +11,7 @@ import '../widgets/scan_overlay.dart';
 import '../widgets/quick_confirm_sheet.dart';
 import 'confirm_screen.dart';
 import 'grade_list_screen.dart';
+import 'graded_scan_screen.dart';
 
 class ScanScreen extends StatefulWidget {
   final int classId;
@@ -301,6 +302,61 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
     }
   }
 
+  /// Lối thoát khi vào nhầm kiểu chấm: đổi đề đang chấm sang "Unit Test đã chấm
+  /// tay" rồi mở thẳng màn 2 ảnh, thay vì bắt giáo viên thoát ra tạo đề mới
+  /// (tạo đề mới còn khoá luôn đề đang chấm dở).
+  Future<void> _switchToGradedMode() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Chuyển kiểu chấm?'),
+        content: const Text(
+          'Đề này sẽ chuyển sang "Unit Test đã chấm tay": chụp dòng tên trước, '
+          'rồi chụp dải điểm bút đỏ. Điểm đã chấm vẫn giữ nguyên.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Huỷ'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Chuyển'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    try {
+      await _examService.createClassExam(
+        widget.classId,
+        widget.totalQuestions,
+        widget.maxScore,
+        gradingMode: 'graded',
+      );
+      if (!mounted) return;
+
+      _stopCamera();
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => GradedScanScreen(
+            classId: widget.classId,
+            examId: widget.examId,
+            className: widget.className,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(friendlyError(e))),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -316,6 +372,11 @@ class _ScanScreenState extends State<ScanScreen> with WidgetsBindingObserver {
               tooltip: 'Đổi camera trước/sau',
               onPressed: _cameraReady ? _toggleCamera : null,
             ),
+          IconButton(
+            icon: const Icon(Icons.swap_horiz),
+            tooltip: 'Chuyển sang chấm Unit Test (chụp tên + dải điểm)',
+            onPressed: _processing ? null : _switchToGradedMode,
+          ),
           IconButton(
             icon: const Icon(Icons.list_alt),
             onPressed: () {

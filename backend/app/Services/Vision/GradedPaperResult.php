@@ -5,11 +5,14 @@ namespace App\Services\Vision;
 class GradedPaperResult
 {
     /**
-     * @param  array{vocabulary:?int,grammar:?int,listening:?int,reading:?int,writing:?int,speaking:?int}|null  $subScores
+     * Điểm để kiểu float (không phải int) vì giáo viên chấm tay thường ghi
+     * điểm lẻ 0.5 trên bài — đọc thành int là mất luôn phần lẻ đó.
+     *
+     * @param  array{vocabulary:?float,grammar:?float,listening:?float,reading:?float,writing:?float,speaking:?float}|null  $subScores
      */
     public function __construct(
         public readonly ?string $studentName,
-        public readonly ?int $totalScore,
+        public readonly ?float $totalScore,
         public readonly ?array $subScores,
         public readonly float $confidence,
     ) {}

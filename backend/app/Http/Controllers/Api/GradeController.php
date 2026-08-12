@@ -30,13 +30,16 @@ class GradeController extends Controller
             'image_url' => 'nullable|string',
             'image_url_2' => 'nullable|string',
             'ai_confidence' => 'nullable|numeric|min:0|max:1',
+            // numeric chứ không integer: giáo viên chấm tay hay cho điểm lẻ
+            // (7.5, 8.25) ở từng kỹ năng — ép integer thì app gửi lên bị 422
+            // hoặc phải làm tròn, mất đúng phần điểm giáo viên đã ghi trên bài.
             'sub_scores' => 'nullable|array',
-            'sub_scores.vocabulary' => 'nullable|integer|min:0',
-            'sub_scores.grammar' => 'nullable|integer|min:0',
-            'sub_scores.listening' => 'nullable|integer|min:0',
-            'sub_scores.reading' => 'nullable|integer|min:0',
-            'sub_scores.writing' => 'nullable|integer|min:0',
-            'sub_scores.speaking' => 'nullable|integer|min:0',
+            'sub_scores.vocabulary' => 'nullable|numeric|min:0|max:100',
+            'sub_scores.grammar' => 'nullable|numeric|min:0|max:100',
+            'sub_scores.listening' => 'nullable|numeric|min:0|max:100',
+            'sub_scores.reading' => 'nullable|numeric|min:0|max:100',
+            'sub_scores.writing' => 'nullable|numeric|min:0|max:100',
+            'sub_scores.speaking' => 'nullable|numeric|min:0|max:100',
             'student_id' => ['nullable', 'exists:students,id', Rule::exists('students', 'id')->where('class_id', $request->input('class_id'))],
             'create_new_student' => 'nullable|boolean',
             'new_student_name' => 'required_if:create_new_student,true|string|max:255',

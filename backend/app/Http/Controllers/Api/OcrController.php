@@ -154,8 +154,10 @@ class OcrController extends Controller
         }
 
         $subScores = $result->subScores ?? [];
-        $sum = array_sum($subScores);
-        $sumMismatch = $result->totalScore !== null && $sum !== $result->totalScore;
+        $sum = round(array_sum($subScores), 2);
+        // So sánh có sai số: điểm giờ là float (có nửa điểm), dùng !== trên float
+        // là báo lệch giả chỉ vì 43.5 vs 43.499999.
+        $sumMismatch = $result->totalScore !== null && abs($sum - $result->totalScore) > 0.001;
 
         return response()->json([
             'subScores' => $subScores,

@@ -1,3 +1,5 @@
+import 'package:dio/dio.dart';
+
 import '../models/extract_result.dart';
 import '../models/graded_paper_result.dart';
 import 'api_client.dart';
@@ -23,12 +25,17 @@ class ExamService {
   /// Exam đang hoạt động (active) của lớp — dùng cho "Đổi kiểu chấm" (update
   /// tại chỗ qua storeToday) và các nơi chỉ cần đề active. Để list/tạo đề mới
   /// (nhiều đề/lớp) dùng getClassExams/createExam bên dưới.
+  /// Chỉ nuốt lỗi 404 (lớp chưa có đề). Mọi lỗi khác — mất mạng, token hết hạn,
+  /// 500 — phải ném ra: trước đây nuốt hết thành null nên app hiểu nhầm là "lớp
+  /// chưa có đề", mở lại hộp thoại kiểu chấm (mặc định "đếm câu đúng") rồi ghi
+  /// đè kiểu chấm của đề đang chấm dở.
   Future<Map<String, dynamic>?> getClassExam(int classId) async {
     try {
       final res = await _api.get('/exams/today', params: {'class_id': classId});
       return res.data as Map<String, dynamic>?;
-    } catch (_) {
-      return null;
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
     }
   }
 
@@ -98,7 +105,7 @@ class ExamService {
     bool? createNewStudent,
     String? newStudentName,
     String? imageUrl2,
-    Map<String, int>? subScores,
+    Map<String, double>? subScores,
   }) async {
     final data = <String, dynamic>{
       'exam_id': examId,

@@ -105,6 +105,42 @@ class GradeTest extends TestCase
         ], $grade->sub_scores);
     }
 
+    /**
+     * Giáo viên chấm tay hay cho nửa điểm ("7.5") ở từng kỹ năng — điểm lẻ phải
+     * lưu nguyên vẹn chứ không bị 422 hay làm tròn.
+     */
+    public function test_store_grade_keeps_decimal_sub_scores(): void
+    {
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->postJson('/api/grades', [
+                'exam_id' => $this->exam->id,
+                'class_id' => $this->class->id,
+                'student_id' => $this->student->id,
+                'total_correct' => 44,
+                'score' => 43.5,
+                'ocr_raw_name' => 'Nguyen Van A',
+                'sub_scores' => [
+                    'vocabulary' => 9.5,
+                    'grammar' => 8,
+                    'listening' => 10,
+                    'reading' => 5.5,
+                    'writing' => 3,
+                    'speaking' => 7.5,
+                ],
+            ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('grade.score', 43.5);
+
+        $grade = Grade::where('exam_id', $this->exam->id)
+            ->where('student_id', $this->student->id)
+            ->first();
+
+        $this->assertSame(43.5, $grade->score);
+        $this->assertSame(9.5, $grade->sub_scores['vocabulary']);
+        $this->assertSame(7.5, $grade->sub_scores['speaking']);
+    }
+
     public function test_store_grade_creates_new_student(): void
     {
         $response = $this->withHeaders($this->jwtAs($this->user))

@@ -7,6 +7,7 @@ import '../models/grade.dart';
 import '../models/school_class.dart';
 import '../services/exam_service.dart';
 import '../utils/error_utils.dart';
+import '../utils/number_utils.dart';
 import '../widgets/app_card.dart';
 import '../widgets/empty_state.dart';
 import '../widgets/loading_view.dart';
@@ -333,7 +334,7 @@ class _GradeListScreenState extends State<GradeListScreen> {
                                             ),
                                             const SizedBox(height: 4),
                                             Text(
-                                              'Đúng: ${g.totalCorrect}  |  Điểm: ${g.score.toStringAsFixed(1)}',
+                                              'Đúng: ${g.totalCorrect}  |  Điểm: ${formatScore(g.score)}',
                                               style:
                                                   theme.textTheme.bodySmall,
                                             ),

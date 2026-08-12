@@ -4,6 +4,7 @@ import '../models/graded_paper_result.dart';
 import '../services/exam_service.dart';
 import '../theme/app_colors.dart';
 import '../utils/error_utils.dart';
+import '../utils/number_utils.dart';
 import '../widgets/confidence_badge.dart';
 import '../widgets/primary_button.dart';
 
@@ -56,9 +57,10 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
   void initState() {
     super.initState();
     _nameCtrl.text = widget.nameResult.ocrRawName;
-    _totalCtrl.text = (widget.scoresResult.totalScore ?? 0).toString();
+    _totalCtrl.text = formatScore(widget.scoresResult.totalScore ?? 0);
     for (final entry in _subCtrls.entries) {
-      entry.value.text = (widget.scoresResult.subScores[entry.key] ?? 0).toString();
+      entry.value.text =
+          formatScore(widget.scoresResult.subScores[entry.key] ?? 0);
     }
 
     if (widget.nameResult.candidates.isNotEmpty) {
@@ -83,12 +85,14 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
     super.dispose();
   }
 
-  int get _sumOfSubScores =>
-      _subCtrls.values.fold(0, (sum, c) => sum + (int.tryParse(c.text) ?? 0));
+  double get _sumOfSubScores =>
+      _subCtrls.values.fold(0.0, (sum, c) => sum + (parseScore(c.text) ?? 0));
 
-  int get _total => int.tryParse(_totalCtrl.text) ?? 0;
+  double get _total => parseScore(_totalCtrl.text) ?? 0;
 
-  bool get _sumMismatch => _sumOfSubScores != _total;
+  /// So sánh có sai số thay vì != — điểm lẻ là double nên 43.5 cộng dồn từ 6 ô
+  /// có thể ra 43.499999 và báo lệch giả.
+  bool get _sumMismatch => (_sumOfSubScores - _total).abs() > 0.001;
 
   Future<void> _save() async {
     // Chưa chọn học sinh và cũng không tạo mới thì backend trả 422 — báo rõ
@@ -113,14 +117,16 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
     try {
       final subScores = {
         for (final entry in _subCtrls.entries)
-          entry.key: int.tryParse(entry.value.text) ?? 0,
+          entry.key: parseScore(entry.value.text) ?? 0,
       };
 
       await _service.saveGrade(
         examId: widget.nameResult.examId,
         classId: widget.classId,
-        totalCorrect: _total,
-        score: _total.toDouble(),
+        // total_correct là cột integer NOT NULL, không dùng ở luồng Unit Test
+        // (điểm thật nằm ở score) — làm tròn để không chặn điểm lẻ 43.5.
+        totalCorrect: _total.round(),
+        score: _total,
         ocrRawName: _nameCtrl.text,
         imageUrl: widget.nameResult.imageUrl ?? '',
         imageUrl2: widget.scoresResult.imageUrl,
@@ -242,7 +248,8 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
                 return TextField(
                   controller: entry.value,
                   decoration: InputDecoration(labelText: _skillLabels[entry.key]),
-                  keyboardType: TextInputType.number,
+                  keyboardType: decimalKeyboard,
+                  inputFormatters: decimalInputFormatters,
                   onChanged: (_) => setState(() {}),
                 );
               }).toList(),
@@ -251,7 +258,8 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
             TextField(
               controller: _totalCtrl,
               decoration: const InputDecoration(labelText: 'TỔNG'),
-              keyboardType: TextInputType.number,
+              keyboardType: decimalKeyboard,
+              inputFormatters: decimalInputFormatters,
               style: const TextStyle(fontWeight: FontWeight.bold),
               onChanged: (_) => setState(() {}),
             ),
@@ -270,7 +278,7 @@ class _GradedConfirmScreenState extends State<GradedConfirmScreen> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Tổng ($_total) không khớp tổng các điểm thành phần ($_sumOfSubScores) — kiểm tra lại trước khi lưu.',
+                        'Tổng (${formatScore(_total)}) không khớp tổng các điểm thành phần (${formatScore(_sumOfSubScores)}) — kiểm tra lại trước khi lưu.',
                         style: const TextStyle(color: Colors.red),
                       ),
                     ),

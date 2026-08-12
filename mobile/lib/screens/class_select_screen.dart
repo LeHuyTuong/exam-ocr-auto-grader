@@ -349,10 +349,19 @@ class _ExamListScreenState extends State<_ExamListScreen> {
   }
 
   Future<void> _createNewExam() async {
+    // Điền sẵn theo đề gần nhất của lớp (danh sách đã sắp created_at desc): một
+    // lớp gần như luôn chấm cùng một kiểu, mặc định cứng "đếm câu đúng" khiến
+    // giáo viên tạo đề mới xong bị rơi vào luồng chụp cả bài lúc không để ý.
+    final latest = _exams.isNotEmpty ? _exams.first : null;
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
-      builder: (ctx) =>
-          _ExamDialog(classCode: widget.cls.code, showNameField: true),
+      builder: (ctx) => _ExamDialog(
+        classCode: widget.cls.code,
+        showNameField: true,
+        initialMode: latest?['gradingMode'] as String?,
+        initialQuestions: latest?['totalQuestions'] as int?,
+        initialMaxScore: latest?['maxScore'] as int?,
+      ),
     );
     if (result == null || !mounted) return;
 

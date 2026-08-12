@@ -44,11 +44,13 @@ Rules:
 - ONLY read the red handwritten numbers. Ignore the printed "/max" denominators — you only
   need the numerator (the number the teacher wrote), not the printed maximum.
 - Read all six skill scores plus the TOTAL score.
+- Scores may be half points ("7.5", "7,5", "7½"). Return them as decimals (7.5) — never
+  round to a whole number, and use "." as the decimal separator even if the teacher wrote ",".
 - If a number is smudged or unclear, still give your best reading and lower "confidence".
 - Set "confidence" (0-1) for how clearly you could read the red handwriting overall.
 
 Return ONLY valid JSON, no extra text, in exactly this shape:
-{"subScores":{"vocabulary":10,"grammar":8,"listening":10,"reading":5,"writing":3,"speaking":7},"totalScore":43,"confidence":0.9}{$hint}
+{"subScores":{"vocabulary":10,"grammar":8.5,"listening":10,"reading":5,"writing":3,"speaking":7},"totalScore":43.5,"confidence":0.9}{$hint}
 PROMPT;
     }
 }
