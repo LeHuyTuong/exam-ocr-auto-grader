@@ -189,7 +189,7 @@ class ClassStatsService
     {
         $students = $this->class->students()
             ->with('grades')
-            ->orderBy('normalized_name')
+            ->orderBy('sort_name')
             ->orderBy('full_name')
             ->get();
 

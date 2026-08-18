@@ -209,11 +209,11 @@ class GradeController extends Controller
         }
 
         $perPage = $request->integer('per_page', 15);
-        // Sắp ABC theo tên (đã bỏ dấu) để khớp thứ tự file Excel xuất ra —
-        // join students vì normalized_name nằm ở bảng đó; select grades.* để
-        // cột trùng tên giữa 2 bảng không đè lên model Grade.
+        // Sắp theo TÊN (chữ cuối) để khớp thứ tự file Excel xuất ra — join
+        // students vì sort_name nằm ở bảng đó; select grades.* để cột trùng tên
+        // giữa 2 bảng không đè lên model Grade.
         $grades = $query->join('students', 'students.id', '=', 'grades.student_id')
-            ->orderBy('students.normalized_name')
+            ->orderBy('students.sort_name')
             ->orderBy('students.full_name')
             ->select('grades.*')
             ->paginate($perPage);

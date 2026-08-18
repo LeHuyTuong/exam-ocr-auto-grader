@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Exam;
+use App\Models\Student;
 use App\Support\SkillAssessment;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -49,11 +50,10 @@ class GradeExcelExporter
         $sheet->getStyle('A1:M1')->getFont()->setBold(true);
         $sheet->getStyle('A1:M1')->getAlignment()->setWrapText(true);
 
-        // Sắp ABC theo tên đã bỏ dấu: so sánh chuỗi thô thì "Đặng"/"Ân" bị đẩy
-        // xuống cuối danh sách (ký tự có dấu nằm sau z trong bảng mã UTF-8).
+        // Sắp theo TÊN (chữ cuối) như danh sách lớp ở Việt Nam, đã bỏ dấu:
+        // "Khổng Đinh Ngọc Hân" nằm ở vần H (Hân) chứ không phải vần K.
         $grades = $exam->grades()->with('student')->get()
-            ->sortBy(fn ($g) => self::sortKey($g->student?->full_name, $g->student?->normalized_name),
-                SORT_NATURAL)
+            ->sortBy(fn ($g) => self::sortKey($g->student?->full_name, $g->student?->sort_name), SORT_NATURAL)
             ->values();
 
         foreach ($grades as $i => $grade) {
@@ -104,14 +104,14 @@ class GradeExcelExporter
             ->setFormatCode(self::SCORE_FORMAT);
     }
 
-    /** Khoá sắp xếp ABC không dấu; rơi về tên gốc viết thường khi thiếu normalized_name. */
-    private static function sortKey(?string $fullName, ?string $normalizedName): string
+    /** Khoá sắp xếp theo tên; tính lại từ full_name khi cột sort_name còn trống. */
+    private static function sortKey(?string $fullName, ?string $sortName): string
     {
-        if ($normalizedName !== null && $normalizedName !== '') {
-            return $normalizedName;
+        if ($sortName !== null && $sortName !== '') {
+            return $sortName;
         }
 
-        return mb_strtolower(trim((string) $fullName), 'UTF-8');
+        return Student::sortKeyFor($fullName);
     }
 
     /**

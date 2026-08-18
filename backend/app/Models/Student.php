@@ -16,6 +16,7 @@ class Student extends Model
         'class_id',
         'full_name',
         'normalized_name',
+        'sort_name',
         'aliases',
     ];
 
@@ -27,16 +28,40 @@ class Student extends Model
     }
 
     /**
-     * normalized_name là khoá phái sinh (tên viết thường, bỏ dấu) dùng để dò tên
-     * OCR và để sắp ABC — luôn tự tính lại từ full_name. Trước đây form admin cho
-     * gõ tay và fallback về nguyên tên có dấu, nên học sinh thêm từ trang quản trị
-     * có khoá sai: dò tên kém chính xác, mà sắp ABC thì "Đỗ"/"Ân" rơi xuống cuối.
+     * Hai khoá phái sinh, luôn tự tính lại từ full_name khi lưu:
+     *
+     * - normalized_name: tên viết thường, bỏ dấu — dùng để dò tên OCR. Trước đây
+     *   form admin cho gõ tay và fallback về nguyên tên có dấu nên khoá bị sai.
+     * - sort_name: khoá sắp xếp theo TÊN (xem sortKeyFor).
      */
     protected static function booted(): void
     {
         static::saving(function (self $student) {
             $student->normalized_name = (new FuzzyMatchService)->normalize($student->full_name);
+            $student->sort_name = self::sortKeyFor($student->full_name);
         });
+    }
+
+    /**
+     * Khoá sắp xếp danh sách lớp theo đúng cách gọi tên ở Việt Nam: xếp theo TÊN
+     * (chữ cuối) chứ không phải họ — "Khổng Đinh Ngọc Hân" xếp ở vần H (Hân),
+     * không phải vần K (Khổng). Trùng tên thì xét tiếp phần họ + tên đệm, nên
+     * "Khổng ... Hân" đứng trước "Trần Ngọc Hân".
+     *
+     * Trả về dạng đã bỏ dấu, viết thường: "han khong dinh ngoc".
+     */
+    public static function sortKeyFor(?string $fullName): string
+    {
+        $normalized = (new FuzzyMatchService)->normalize($fullName);
+
+        if ($normalized === '') {
+            return '';
+        }
+
+        $parts = explode(' ', $normalized);
+        $given = array_pop($parts);
+
+        return trim($given.' '.implode(' ', $parts));
     }
 
     public function class(): BelongsTo
@@ -54,6 +79,7 @@ class Student extends Model
         return [
             'full_name' => $this->full_name,
             'normalized_name' => $this->normalized_name,
+            'sort_name' => $this->sort_name,
             'class_id' => $this->class_id,
         ];
     }

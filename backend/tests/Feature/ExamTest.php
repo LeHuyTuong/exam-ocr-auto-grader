@@ -266,13 +266,14 @@ class ExamTest extends TestCase
         unlink($tmp);
     }
 
-    public function test_export_sorts_students_alphabetically_ignoring_accents(): void
+    public function test_export_sorts_students_by_given_name(): void
     {
         $exam = Exam::factory()->create(['max_score' => 50]);
         $this->user->classes()->attach($exam->class_id);
 
-        // "Đỗ" và "Ân" có dấu: so sánh chuỗi thô sẽ đẩy cả hai xuống sau "Trần".
-        foreach (['Trần Văn Bình', 'Đỗ Thị Hoa', 'Ân Văn Cường'] as $name) {
+        // Xếp theo TÊN (chữ cuối): Bình -> Cường -> Hoa, không phải theo họ
+        // (Ân -> Đỗ -> Trần) và cũng không phải thứ tự chèn.
+        foreach (['Đỗ Thị Hoa', 'Trần Văn Bình', 'Ân Văn Cường'] as $name) {
             $student = Student::factory()->create(['class_id' => $exam->class_id, 'full_name' => $name]);
             Grade::factory()->create([
                 'exam_id' => $exam->id,
@@ -288,9 +289,9 @@ class ExamTest extends TestCase
         file_put_contents($tmp, $response->streamedContent());
         $sheet = IOFactory::load($tmp)->getActiveSheet();
 
-        $this->assertSame('Ân Văn Cường', $sheet->getCell('B2')->getValue());
-        $this->assertSame('Đỗ Thị Hoa', $sheet->getCell('B3')->getValue());
-        $this->assertSame('Trần Văn Bình', $sheet->getCell('B4')->getValue());
+        $this->assertSame('Trần Văn Bình', $sheet->getCell('B2')->getValue());
+        $this->assertSame('Ân Văn Cường', $sheet->getCell('B3')->getValue());
+        $this->assertSame('Đỗ Thị Hoa', $sheet->getCell('B4')->getValue());
 
         unlink($tmp);
     }

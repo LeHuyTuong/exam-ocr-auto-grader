@@ -66,7 +66,7 @@ class DashboardController extends Controller
 
         $students = Student::where('class_id', $schoolClass->id)
             ->with(['grades' => fn ($q) => $q->whereIn('exam_id', $examIds)])
-            ->orderBy('normalized_name')
+            ->orderBy('sort_name')
             ->orderBy('full_name')
             ->paginate($perPage);
 
