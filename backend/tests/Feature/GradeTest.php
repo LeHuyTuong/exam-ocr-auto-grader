@@ -191,6 +191,26 @@ class GradeTest extends TestCase
             ->assertJsonCount(3, 'grades');
     }
 
+    public function test_index_grades_sorted_alphabetically_ignoring_accents(): void
+    {
+        foreach (['Trần Văn Bình', 'Đỗ Thị Hoa', 'Ân Văn Cường'] as $name) {
+            $student = Student::factory()->create(['class_id' => $this->class->id, 'full_name' => $name]);
+            Grade::factory()->create([
+                'exam_id' => $this->exam->id,
+                'class_id' => $this->class->id,
+                'student_id' => $student->id,
+            ]);
+        }
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->getJson('/api/grades?exam_id='.$this->exam->id.'&class_id='.$this->class->id);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('grades.0.studentName', 'Ân Văn Cường')
+            ->assertJsonPath('grades.1.studentName', 'Đỗ Thị Hoa')
+            ->assertJsonPath('grades.2.studentName', 'Trần Văn Bình');
+    }
+
     public function test_update_grade(): void
     {
         $grade = Grade::factory()->create([

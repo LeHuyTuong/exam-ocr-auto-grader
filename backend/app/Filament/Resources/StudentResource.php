@@ -43,7 +43,10 @@ class StudentResource extends Resource
                 Forms\Components\TextInput::make('full_name')
                     ->required(),
                 Forms\Components\TextInput::make('normalized_name')
-                    ->required(),
+                    ->label('Tên chuẩn hoá (tự sinh)')
+                    ->helperText('Tự tính từ tên học sinh (viết thường, bỏ dấu) — dùng để dò tên và sắp ABC.')
+                    ->disabled()
+                    ->dehydrated(false),
                 Forms\Components\Textarea::make('aliases')
                     ->columnSpanFull(),
             ]);

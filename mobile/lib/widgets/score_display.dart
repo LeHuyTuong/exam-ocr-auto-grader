@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../utils/number_utils.dart';
+
 class ScoreDisplay extends StatelessWidget {
   final double score;
   final double maxScore;
@@ -22,7 +24,7 @@ class ScoreDisplay extends StatelessWidget {
       textBaseline: TextBaseline.alphabetic,
       children: [
         Text(
-          score.toStringAsFixed(1),
+          formatScore(score),
           style: TextStyle(
             fontSize: fs,
             fontWeight: FontWeight.bold,
@@ -30,7 +32,7 @@ class ScoreDisplay extends StatelessWidget {
           ),
         ),
         Text(
-          ' / $maxScore',
+          ' / ${formatScore(maxScore)}',
           style: TextStyle(
             fontSize: fs * 0.6,
             color: theme.colorScheme.onSurfaceVariant,

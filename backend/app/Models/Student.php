@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Services\FuzzyMatchService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,6 +24,19 @@ class Student extends Model
         return [
             'aliases' => 'array',
         ];
+    }
+
+    /**
+     * normalized_name là khoá phái sinh (tên viết thường, bỏ dấu) dùng để dò tên
+     * OCR và để sắp ABC — luôn tự tính lại từ full_name. Trước đây form admin cho
+     * gõ tay và fallback về nguyên tên có dấu, nên học sinh thêm từ trang quản trị
+     * có khoá sai: dò tên kém chính xác, mà sắp ABC thì "Đỗ"/"Ân" rơi xuống cuối.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $student) {
+            $student->normalized_name = (new FuzzyMatchService)->normalize($student->full_name);
+        });
     }
 
     public function class(): BelongsTo

@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\SchoolClass;
+use App\Services\FuzzyMatchService;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 class StudentFactory extends Factory
@@ -11,8 +12,10 @@ class StudentFactory extends Factory
     {
         return [
             'class_id' => SchoolClass::factory(),
-            'full_name' => fake()->name('vi_VN'),
-            'normalized_name' => fake()->name('vi_VN'),
+            'full_name' => $name = fake()->name('vi_VN'),
+            // Suy ra từ full_name (model cũng tự tính lại khi lưu) — trước đây
+            // random một tên khác nên test sắp xếp theo tên chạy sai lung tung.
+            'normalized_name' => (new FuzzyMatchService)->normalize($name),
             'aliases' => [],
         ];
     }

@@ -195,19 +195,28 @@ class GradeController extends Controller
             return response()->json(['error' => 'FORBIDDEN', 'message' => 'Bạn không có quyền xem điểm lớp này.'], 403);
         }
 
+        // Cột phải ghi rõ bảng: query dưới join thêm students, mà students cũng
+        // có class_id nên where('class_id') trần là "ambiguous column" -> 500.
         $query = Grade::with('student')
-            ->where('exam_id', $request->integer('exam_id'));
+            ->where('grades.exam_id', $request->integer('exam_id'));
 
         if ($request->has('class_id')) {
-            $query->where('class_id', $classId);
+            $query->where('grades.class_id', $classId);
         }
 
         if ($request->has('student_id')) {
-            $query->where('student_id', $request->integer('student_id'));
+            $query->where('grades.student_id', $request->integer('student_id'));
         }
 
         $perPage = $request->integer('per_page', 15);
-        $grades = $query->orderBy('created_at', 'desc')->paginate($perPage);
+        // Sắp ABC theo tên (đã bỏ dấu) để khớp thứ tự file Excel xuất ra —
+        // join students vì normalized_name nằm ở bảng đó; select grades.* để
+        // cột trùng tên giữa 2 bảng không đè lên model Grade.
+        $grades = $query->join('students', 'students.id', '=', 'grades.student_id')
+            ->orderBy('students.normalized_name')
+            ->orderBy('students.full_name')
+            ->select('grades.*')
+            ->paginate($perPage);
 
         return response()->json([
             'grades' => collect($grades->items())->map(fn ($g) => [

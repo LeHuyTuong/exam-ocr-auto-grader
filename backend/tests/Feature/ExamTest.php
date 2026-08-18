@@ -8,6 +8,7 @@ use App\Models\SchoolClass;
 use App\Models\Student;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
@@ -217,6 +218,79 @@ class ExamTest extends TestCase
         $this->assertEmpty($sheet->getCell('J3')->getValue());
         // Cột nhận xét (K) luôn trống cho giáo viên tự ghi.
         $this->assertNull($sheet->getCell('K2')->getValue());
+
+        unlink($tmp);
+    }
+
+    /**
+     * Điểm phải nằm trong ô dưới dạng SỐ: nếu ghi ra chuỗi thì Excel bản tiếng
+     * Việt coi "7.5" là text, bôi đen cả cột cũng không SUM ra tổng.
+     */
+    public function test_export_writes_decimal_scores_as_numbers(): void
+    {
+        $exam = Exam::factory()->create(['max_score' => 50]);
+        $this->user->classes()->attach($exam->class_id);
+
+        $student = Student::factory()->create(['class_id' => $exam->class_id, 'full_name' => 'Nguyen Van A']);
+
+        Grade::factory()->create([
+            'exam_id' => $exam->id,
+            'class_id' => $exam->class_id,
+            'student_id' => $student->id,
+            'score' => 47.5,
+            // Lưu cả kiểu chuỗi "7,5" (dữ liệu cũ / AI đọc kiểu Việt) để chắc
+            // chắn export vẫn ra số 7.5 chứ không phải 7 hay text.
+            'sub_scores' => [
+                'vocabulary' => 9.5, 'grammar' => '7,5', 'listening' => 10,
+                'reading' => 5, 'writing' => 5, 'speaking' => 10,
+            ],
+        ]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->get('/api/exams/'.$exam->id.'/export');
+
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        file_put_contents($tmp, $response->streamedContent());
+        $sheet = IOFactory::load($tmp)->getActiveSheet();
+
+        $this->assertSame(9.5, $sheet->getCell('C2')->getValue());
+        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('C2')->getDataType());
+
+        $this->assertSame(7.5, $sheet->getCell('D2')->getValue());
+        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('D2')->getDataType());
+
+        // TỔNG = 9.5 + 7.5 + 10 + 5 + 5 + 10
+        $this->assertSame(47.0, $sheet->getCell('I2')->getValue());
+        $this->assertSame(DataType::TYPE_NUMERIC, $sheet->getCell('I2')->getDataType());
+
+        unlink($tmp);
+    }
+
+    public function test_export_sorts_students_alphabetically_ignoring_accents(): void
+    {
+        $exam = Exam::factory()->create(['max_score' => 50]);
+        $this->user->classes()->attach($exam->class_id);
+
+        // "Đỗ" và "Ân" có dấu: so sánh chuỗi thô sẽ đẩy cả hai xuống sau "Trần".
+        foreach (['Trần Văn Bình', 'Đỗ Thị Hoa', 'Ân Văn Cường'] as $name) {
+            $student = Student::factory()->create(['class_id' => $exam->class_id, 'full_name' => $name]);
+            Grade::factory()->create([
+                'exam_id' => $exam->id,
+                'class_id' => $exam->class_id,
+                'student_id' => $student->id,
+            ]);
+        }
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->get('/api/exams/'.$exam->id.'/export');
+
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        file_put_contents($tmp, $response->streamedContent());
+        $sheet = IOFactory::load($tmp)->getActiveSheet();
+
+        $this->assertSame('Ân Văn Cường', $sheet->getCell('B2')->getValue());
+        $this->assertSame('Đỗ Thị Hoa', $sheet->getCell('B3')->getValue());
+        $this->assertSame('Trần Văn Bình', $sheet->getCell('B4')->getValue());
 
         unlink($tmp);
     }

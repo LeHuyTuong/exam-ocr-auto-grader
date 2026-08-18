@@ -36,6 +36,26 @@ class SkillAssessment
         return (int) config('skills.total_max', 50);
     }
 
+    /**
+     * Đọc 1 ô điểm về float, chấp nhận cả "7,5" (giáo viên/AI ghi kiểu Việt) lẫn
+     * "7.5". (float) "7,5" trong PHP ra 7.0 — mất nửa điểm mà không báo lỗi gì,
+     * nên mọi chỗ đọc điểm đều phải đi qua đây.
+     */
+    public static function toScore(mixed $value): ?float
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        if (is_string($value)) {
+            $value = str_replace(',', '.', trim($value));
+        }
+        if (! is_numeric($value)) {
+            return null;
+        }
+
+        return (float) $value;
+    }
+
     /** true nếu $value KHÔNG đạt (dưới ngưỡng). null/thiếu key => false. */
     public static function isWeak(string $key, mixed $value): bool
     {
@@ -43,11 +63,12 @@ class SkillAssessment
         if (! isset($thresholds[$key])) {
             return false;
         }
-        if ($value === null || $value === '') {
+        $score = self::toScore($value);
+        if ($score === null) {
             return false;
         }
 
-        return (float) $value < (float) $thresholds[$key]['pass'];
+        return $score < (float) $thresholds[$key]['pass'];
     }
 
     /**
@@ -63,10 +84,9 @@ class SkillAssessment
         }
         $weak = [];
         foreach (self::thresholds() as $key => $cfg) {
-            if (array_key_exists($key, $subScores) && $subScores[$key] !== null && $subScores[$key] !== '') {
-                if ((float) $subScores[$key] < (float) $cfg['pass']) {
-                    $weak[] = $cfg['label'];
-                }
+            $score = self::toScore($subScores[$key] ?? null);
+            if ($score !== null && $score < (float) $cfg['pass']) {
+                $weak[] = $cfg['label'];
             }
         }
 
@@ -91,10 +111,9 @@ class SkillAssessment
         }
         $weak = [];
         foreach (self::thresholds() as $key => $cfg) {
-            if (array_key_exists($key, $subScores) && $subScores[$key] !== null && $subScores[$key] !== '') {
-                if ((float) $subScores[$key] < (float) $cfg['pass']) {
-                    $weak[] = $key;
-                }
+            $score = self::toScore($subScores[$key] ?? null);
+            if ($score !== null && $score < (float) $cfg['pass']) {
+                $weak[] = $key;
             }
         }
 
@@ -110,8 +129,9 @@ class SkillAssessment
     {
         $values = [];
         foreach ($subScoresList as $sub) {
-            if (is_array($sub) && array_key_exists($key, $sub) && $sub[$key] !== null && $sub[$key] !== '') {
-                $values[] = (float) $sub[$key];
+            $score = is_array($sub) ? self::toScore($sub[$key] ?? null) : null;
+            if ($score !== null) {
+                $values[] = $score;
             }
         }
         if (empty($values)) {
@@ -130,8 +150,9 @@ class SkillAssessment
         $total = 0.0;
         $has = false;
         foreach (self::thresholds() as $key => $cfg) {
-            if (array_key_exists($key, $subScores) && $subScores[$key] !== null && $subScores[$key] !== '') {
-                $total += (float) $subScores[$key];
+            $score = self::toScore($subScores[$key] ?? null);
+            if ($score !== null) {
+                $total += $score;
                 $has = true;
             }
         }

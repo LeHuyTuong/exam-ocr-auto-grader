@@ -4,7 +4,9 @@ namespace App\Services;
 
 use App\Models\Exam;
 use App\Support\SkillAssessment;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
@@ -29,6 +31,13 @@ class GradeExcelExporter
     /** Order matches the C-H columns above. */
     private const SUB_SCORE_KEYS = ['vocabulary', 'grammar', 'listening', 'reading', 'writing', 'speaking'];
 
+    /**
+     * Định dạng số cho các cột điểm: nguyên thì hiện "8", lẻ thì hiện "7.5"
+     * (Excel tự đổi sang "7,5" nếu máy giáo viên để vùng Việt Nam — quan trọng
+     * là ô mang GIÁ TRỊ SỐ nên SUM/AVERAGE chạy được).
+     */
+    private const SCORE_FORMAT = '0.##';
+
     public function export(Exam $exam): Spreadsheet
     {
         $spreadsheet = new Spreadsheet;
@@ -40,8 +49,11 @@ class GradeExcelExporter
         $sheet->getStyle('A1:M1')->getFont()->setBold(true);
         $sheet->getStyle('A1:M1')->getAlignment()->setWrapText(true);
 
+        // Sắp ABC theo tên đã bỏ dấu: so sánh chuỗi thô thì "Đặng"/"Ân" bị đẩy
+        // xuống cuối danh sách (ký tự có dấu nằm sau z trong bảng mã UTF-8).
         $grades = $exam->grades()->with('student')->get()
-            ->sortBy(fn ($g) => $g->student?->full_name ?? '')
+            ->sortBy(fn ($g) => self::sortKey($g->student?->full_name, $g->student?->normalized_name),
+                SORT_NATURAL)
             ->values();
 
         foreach ($grades as $i => $grade) {
@@ -52,12 +64,12 @@ class GradeExcelExporter
             $sheet->setCellValue([2, $row], $grade->student?->full_name);
 
             foreach (self::SUB_SCORE_KEYS as $j => $key) {
-                $sheet->setCellValue([3 + $j, $row], $subScores[$key] ?? null);
+                $this->setScoreCell($sheet, 3 + $j, $row, SkillAssessment::toScore($subScores[$key] ?? null));
             }
 
             // Cột TỔNG (max = 50): tổng 6 kỹ năng khi có sub_scores, fallback score.
-            $total = SkillAssessment::totalFromSubScores($subScores) ?? $grade->score;
-            $sheet->setCellValue([9, $row], $total);
+            $total = SkillAssessment::totalFromSubScores($subScores) ?? SkillAssessment::toScore($grade->score);
+            $this->setScoreCell($sheet, 9, $row, $total);
 
             // Cột 10: tự tính các kỹ năng cần cải thiện theo ngưỡng 9/9/9/4/4/9
             // (tương đương TEXTJOIN trong công thức Excel của giáo viên).
@@ -73,6 +85,33 @@ class GradeExcelExporter
         }
 
         return $spreadsheet;
+    }
+
+    /**
+     * Ghi 1 ô điểm dưới dạng SỐ thật. Trước đây đẩy thẳng giá trị từ JSON vào
+     * setCellValue: điểm lưu dạng chuỗi ("7.5"/"7,5") bị Excel bản tiếng Việt
+     * coi là text nên bôi đen cả cột cũng không SUM ra tổng.
+     */
+    private function setScoreCell(Worksheet $sheet, int $col, int $row, ?float $score): void
+    {
+        if ($score === null) {
+            return;
+        }
+
+        $sheet->setCellValueExplicit([$col, $row], $score, DataType::TYPE_NUMERIC);
+        $sheet->getStyle([$col, $row, $col, $row])
+            ->getNumberFormat()
+            ->setFormatCode(self::SCORE_FORMAT);
+    }
+
+    /** Khoá sắp xếp ABC không dấu; rơi về tên gốc viết thường khi thiếu normalized_name. */
+    private static function sortKey(?string $fullName, ?string $normalizedName): string
+    {
+        if ($normalizedName !== null && $normalizedName !== '') {
+            return $normalizedName;
+        }
+
+        return mb_strtolower(trim((string) $fullName), 'UTF-8');
     }
 
     /**

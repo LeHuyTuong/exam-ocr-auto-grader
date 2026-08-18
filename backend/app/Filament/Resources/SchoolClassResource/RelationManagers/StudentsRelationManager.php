@@ -25,8 +25,10 @@ class StudentsRelationManager extends RelationManager
                 Forms\Components\TextInput::make('full_name')
                     ->required(),
                 Forms\Components\TextInput::make('normalized_name')
-                    ->hint('Để trống = dùng tên học sinh')
-                    ->dehydrateStateUsing(fn ($state, $get) => filled($state) ? $state : $get('full_name')),
+                    ->label('Tên chuẩn hoá (tự sinh)')
+                    ->helperText('Tự tính từ tên học sinh (viết thường, bỏ dấu) — dùng để dò tên và sắp ABC.')
+                    ->disabled()
+                    ->dehydrated(false),
                 Forms\Components\Textarea::make('aliases')
                     ->columnSpanFull(),
             ]);
