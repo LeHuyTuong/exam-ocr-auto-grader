@@ -7,6 +7,7 @@ use App\Models\Student;
 use App\Support\SkillAssessment;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\NumberFormat;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -33,11 +34,14 @@ class GradeExcelExporter
     private const SUB_SCORE_KEYS = ['vocabulary', 'grammar', 'listening', 'reading', 'writing', 'speaking'];
 
     /**
-     * Định dạng số cho các cột điểm: nguyên thì hiện "8", lẻ thì hiện "7.5"
-     * (Excel tự đổi sang "7,5" nếu máy giáo viên để vùng Việt Nam — quan trọng
-     * là ô mang GIÁ TRỊ SỐ nên SUM/AVERAGE chạy được).
+     * Định dạng số cho các cột điểm: nguyên hiện "8", lẻ hiện "7.5".
+     *
+     * PHẢI là General, không được dùng mã kiểu "0.##": Excel luôn vẽ dấu phân
+     * cách thập phân có trong mã kể cả khi phần lẻ rỗng, nên điểm 10 hiện ra
+     * "10." — và bản Excel tiếng Việt đổi dấu chấm đó thành dấu phẩy thành
+     * "10,". General không có dấu nào cứng nên số nguyên hiện gọn "10".
      */
-    private const SCORE_FORMAT = '0.##';
+    private const SCORE_FORMAT = NumberFormat::FORMAT_GENERAL;
 
     public function export(Exam $exam): Spreadsheet
     {
@@ -98,7 +102,10 @@ class GradeExcelExporter
             return;
         }
 
-        $sheet->setCellValueExplicit([$col, $row], $score, DataType::TYPE_NUMERIC);
+        // Chốt 2 chữ số thập phân trước khi ghi: General hiện đúng những gì có
+        // trong ô, mà cộng dồn float có thể ra 43.499999999 — làm tròn ở đây để
+        // không hiện ra một dãy số lẻ dài trong file gửi phụ huynh.
+        $sheet->setCellValueExplicit([$col, $row], round($score, 2), DataType::TYPE_NUMERIC);
         $sheet->getStyle([$col, $row, $col, $row])
             ->getNumberFormat()
             ->setFormatCode(self::SCORE_FORMAT);

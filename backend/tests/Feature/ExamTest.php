@@ -266,6 +266,54 @@ class ExamTest extends TestCase
         unlink($tmp);
     }
 
+    /**
+     * Điểm nguyên phải hiện "10", không phải "10." — mã định dạng kiểu "0.##"
+     * khiến Excel luôn vẽ dấu thập phân dù phần lẻ rỗng, và bản Excel tiếng
+     * Việt đổi dấu đó thành dấu phẩy nên cả cột đầy "10," "8," "4,".
+     */
+    public function test_export_shows_whole_scores_without_trailing_separator(): void
+    {
+        $exam = Exam::factory()->create(['max_score' => 50]);
+        $this->user->classes()->attach($exam->class_id);
+
+        $student = Student::factory()->create(['class_id' => $exam->class_id, 'full_name' => 'Nguyen Van A']);
+
+        Grade::factory()->create([
+            'exam_id' => $exam->id,
+            'class_id' => $exam->class_id,
+            'student_id' => $student->id,
+            'score' => 42.5,
+            'sub_scores' => [
+                'vocabulary' => 10, 'grammar' => 8, 'listening' => 10,
+                'reading' => 4, 'writing' => 3, 'speaking' => 7.5,
+            ],
+        ]);
+
+        $response = $this->withHeaders($this->jwtAs($this->user))
+            ->get('/api/exams/'.$exam->id.'/export');
+
+        $tmp = tempnam(sys_get_temp_dir(), 'xlsx');
+        file_put_contents($tmp, $response->streamedContent());
+        $sheet = IOFactory::load($tmp)->getActiveSheet();
+
+        // Nguyên: không có đuôi thập phân nào bám theo.
+        $this->assertSame('10', $sheet->getCell('C2')->getFormattedValue());
+        $this->assertSame('4', $sheet->getCell('F2')->getFormattedValue());
+        // Lẻ: vẫn giữ nguyên nửa điểm.
+        $this->assertSame('7.5', $sheet->getCell('H2')->getFormattedValue());
+        $this->assertSame('42.5', $sheet->getCell('I2')->getFormattedValue());
+
+        // Mã định dạng không được chứa dấu thập phân cứng.
+        foreach (['C2', 'F2', 'H2', 'I2'] as $ref) {
+            $this->assertStringNotContainsString(
+                '.',
+                $sheet->getCell($ref)->getStyle()->getNumberFormat()->getFormatCode(),
+            );
+        }
+
+        unlink($tmp);
+    }
+
     public function test_export_sorts_students_by_given_name(): void
     {
         $exam = Exam::factory()->create(['max_score' => 50]);
